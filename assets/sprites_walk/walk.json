@@ -1,0 +1,11 @@
+{
+  "fps": 4,
+  "frameDurationMs": 250,
+  "frameSize": [
+    150,
+    200
+  ],
+  "framesPerDirection": 4,
+  "spritesheetLayout": "4 cột = 4 frame, 4 hàng theo thứ tự: di_xuong, di_len, di_trai, di_phai",
+  "files": "{nam|nu}/{nam|nu}_di_{xuong|len|trai|phai}_{01..04}.png"
+}

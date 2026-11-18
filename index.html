@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Vạn Cổ Tiên Lộ — Tu Chân Idle</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/hotbar.css" />
+  <link rel="stylesheet" href="css/skin.css" />
+</head>
+<body>
+  <!-- 1. CẢNH NỀN TIÊN SƠN BÌNH MINH (assets/bg.jpg + lớp sương mù cổ phong) -->
+  <div class="immortal-world-bg">
+    <div class="bg-vignette-overlay"></div>
+    <div class="mist-layer mist-1"></div>
+    <div class="mist-layer mist-2"></div>
+  </div>
+
+  <!-- 2. LỚP CANVAS HẠT LINH KHÍ PHÍA SAU NHÂN VẬT -->
+  <canvas id="canvas-bg-fx" class="fx-canvas"></canvas>
+
+  <!-- 3. THANH TRÊN CÙNG GỌN GÀNG:
+       - Góc trái: Chỉ hiện Đạo Lộ (Tư Chất & Linh Căn nằm trong Hồ Sơ Nhân Vật)
+       - Chính giữa: Bảng tên Cảnh Giới
+       - Góc phải: Hàng trên là Đạo Vận + Nhạc, Hàng dưới là nút 🗡️ Xuất Quan -->
+  <header class="hud-top-bar">
+
+    <div class="realm-plaque">
+      <div id="macro-realm-badge" class="plaque-macro">♂ Vô Danh Đạo Nhân • ☯️ Chính Đạo • I. Phàm Cảnh Lộ</div>
+      <h1 id="realm-name" class="plaque-realm-name">Thối Thể - Luyện Bì</h1>
+      <div id="realm-tier" class="plaque-tier">Cảnh giới 1/100 • Tầng 1/5</div>
+    </div>
+
+    <div class="hud-top-right-stack">
+      <div id="current-faction-badge" class="jade-tag" title="Nhấn để xem Hồ Sơ Nhân Vật">☯️ Chính Đạo (x1.0)</div>
+      <div id="current-daovan-badge" class="jade-tag" title="Nhấn để mở Đài Luân Hồi">☯️ Đạo Vận: 0</div>
+      <button id="btn-toggle-sound" class="jade-tag sound-btn sound-on" title="Bật/Tắt nhạc nền">🎵 Nhạc: Bật</button>
+    </div>
+  </header>
+
+
+
+  <!-- 4. THÔNG SỐ LINH KHÍ & DẢI 4 CHỈ SỐ CHIẾN ĐẤU NỀN TRONG SUỐT THANH THOÁT -->
+  <section class="hud-qi-floating">
+    <div id="qi-amount" class="hud-qi-value">0</div>
+    <div class="hud-qi-rate-row">
+      <span id="qi-rate" class="hud-rate-text">+1 / giây</span>
+      <span id="active-multiplier-badge" class="hud-combo-text">+1.5 / chạm</span>
+    </div>
+    <div id="hud-combat-stats-bar" class="hud-combat-stats-transparent" title="Nhấn để xem Hồ Sơ Nhân Vật">
+      <span class="cs-inline hp">❤️ Máu: <strong>100</strong></span>
+      <span class="cs-sep">❖</span>
+      <span class="cs-inline mp">💧 Linh Lực: <strong>100</strong></span>
+      <span class="cs-sep">❖</span>
+      <span class="cs-inline spd">💨 Tốc Độ: <strong>10</strong></span>
+      <span class="cs-sep">❖</span>
+      <span class="cs-inline atk">⚔️ Sức Mạnh: <strong>10</strong></span>
+    </div>
+    <div id="boost-status-text" class="hud-buff-line"></div>
+  </section>
+
+  <!-- 5. TRUNG TÂM MÀN HÌNH: NHÂN VẬT TỌA THIỀN & HÀO QUANG PHÙ VĂN -->
+  <main class="center-sanctuary">
+    <div id="cultivation-stage" class="cultivator-stage">
+      <div class="meditation-shadow"></div>
+
+      <div class="back-halo-container">
+        <div class="halo-glow-core"></div>
+
+        <svg class="halo-rune-svg" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="150" cy="150" r="142" fill="none" stroke="var(--aura-primary)" stroke-width="1.4" stroke-dasharray="10 6" />
+          <circle cx="150" cy="150" r="126" fill="none" stroke="var(--bronze-gold)" stroke-width="1" />
+          <polygon points="150,14 268,218 32,218" fill="none" stroke="var(--bronze-gold)" stroke-width="0.9" opacity="0.5" />
+          <polygon points="150,286 268,82 32,82" fill="none" stroke="var(--aura-primary)" stroke-width="0.9" opacity="0.5" />
+        </svg>
+
+        <svg class="halo-rune-inner-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bronze-gold)" stroke-width="1.4" stroke-dasharray="4 8" />
+          <rect x="36" y="36" width="128" height="128" fill="none" stroke="var(--aura-primary)" stroke-width="1" transform="rotate(45 100 100)" opacity="0.6" />
+          <rect x="36" y="36" width="128" height="128" fill="none" stroke="var(--bronze-gold)" stroke-width="1" opacity="0.6" />
+        </svg>
+      </div>
+
+      <div id="cultivator-target" class="character-figure-wrap" role="button" tabindex="0" aria-label="Chạm để vận công hấp thụ linh khí">
+        <img id="character-sprite-img" class="character-img" src="assets/char_male.png" alt="Tu sĩ tọa thiền" />
+
+        <svg id="character-fallback-svg" class="character-fallback-svg hidden" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="120" cy="68" r="24" fill="rgba(212, 175, 55, 0.35)" stroke="var(--bronze-gold)" stroke-width="1.5" />
+          <path d="M55 215 C58 140 88 102 120 102 C152 102 182 140 185 215 Z" fill="rgba(14, 38, 44, 0.85)" stroke="var(--bronze-gold)" stroke-width="2" />
+          <ellipse cx="120" cy="218" rx="78" ry="20" fill="rgba(9, 24, 28, 0.9)" stroke="var(--aura-primary)" stroke-width="1.5" />
+        </svg>
+      </div>
+    </div>
+  </main>
+
+  <!-- 6. LỚP CANVAS HẠT LINH KHÍ PHÍA TRƯỚC NHÂN VẬT + CHỮ NỔI & CƠ DUYÊN -->
+  <canvas id="canvas-fg-fx" class="fx-canvas"></canvas>
+  <div id="fortune-container" class="fortune-dom-layer"></div>
+  <div id="fx-layer" class="fx-dom-layer"></div>
+
+  <!-- 7. TIỂU CẢNH STICKER BIỂU CẢM SỐNG ĐỘNG -->
+  <aside id="companion-sticker-box" class="companion-sticker-widget" title="Chạm để đổi biểu cảm">
+    <img id="companion-sticker-img" src="assets/stickers/01_nam_im_lang.png" alt="Tâm tình tu sĩ" class="companion-sticker-img" />
+    <div id="companion-speech" class="companion-speech-bubble">
+      Chạm vào ta để đổi biểu cảm, chạm tu sĩ để vận công!
+    </div>
+  </aside>
+
+  <!-- 8. BẢNG CHỌN ĐẠO LỘ KHI BẮT ĐẦU GAME HOẶC KHI VỪA CHUYỂN SINH -->
+  <div id="faction-select-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card faction-choice-modal">
+      <h2 class="trib-title" style="text-align:center;font-size:1.3rem;color:var(--bronze-light);margin-bottom:4px;">
+        ☯️ KHỞI ĐẦU ĐẠO LỘ: CHÍNH ĐẠO HAY MA ĐẠO? 🩸
+      </h2>
+      <p class="trib-subtitle" style="text-align:center;margin-bottom:12px;">
+        Chỉ khi <strong>Luân Hồi Chuyển Sinh</strong> mới có thể chọn lại Đạo Lộ:
+      </p>
+
+      <div class="faction-cards-grid">
+        <div class="faction-choice-card chinh-card">
+          <div class="fc-badge" style="color:#38bdf8;border-color:#38bdf8;">☯️ HUYỀN MÔN CHÍNH THỐNG</div>
+          <h3 class="fc-title" style="color:#38bdf8;">Chính Đạo</h3>
+          <ul class="fc-perks-list">
+            <li>✦ <strong>Tu luyện:</strong> Ổn định (<strong>x1.00</strong>) • <strong>Đột phá:</strong> Chuẩn (<strong>+0%</strong>)</li>
+            <li>✦ <strong>Thiên Kiếp:</strong> Chịu <strong>3 luồng Thiên Lôi (🛡️🛡️🛡️)</strong></li>
+            <li>✦ <strong>Bản mệnh:</strong> <strong>+20% Máu tối đa</strong></li>
+          </ul>
+          <button id="btn-choose-chinh-dao" class="btn-ancient-wide ready" style="margin-top:auto;">
+            ☯️ Nhập Môn Chính Đạo
+          </button>
+        </div>
+
+        <div class="faction-choice-card ma-card">
+          <div class="fc-badge" style="color:#f43f5e;border-color:#f43f5e;">🩸 NGHỊCH THIÊN MA TÔNG</div>
+          <h3 class="fc-title" style="color:#f43f5e;">Ma Đạo</h3>
+          <ul class="fc-perks-list">
+            <li>✦ <strong>Tu luyện:</strong> Cực nhanh (<strong>x1.65</strong>) • <strong>Đột phá:</strong> <strong>-15%</strong></li>
+            <li>✦ <strong>Thiên Kiếp:</strong> Chịu <strong>2 lần (🛡️🛡️)</strong>, sét nhanh hơn 30%</li>
+            <li>✦ <strong>Bản mệnh:</strong> <strong>+35% Sức Mạnh Công Kích</strong></li>
+          </ul>
+          <button id="btn-choose-ma-dao" class="btn-ancient-wide ready ma-btn" style="margin-top:auto;">
+            🩸 Nhập Môn Ma Đạo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. CỬA SỔ BÍ CẢNH HỒNG HOANG -->
+  <div id="expedition-modal-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card expedition-modal-card">
+      <div class="jade-drawer-header" style="margin:-16px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">🗡️ Bí Cảnh Hồng Hoang</h2>
+        <button id="expedition-modal-close" class="jade-drawer-close" title="Về Động Phủ">✕</button>
+      </div>
+      <div id="expedition-panel-container"></div>
+    </div>
+  </div>
+
+  <!-- 10. MINIGAME ĐỘ THIÊN KIẾP -->
+  <div id="tribulation-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card">
+      <div class="trib-header">
+        <div>
+          <h3 class="trib-title">⚡ CỬU THIÊN LÔI KIẾP ⚡</h3>
+          <p id="tribulation-status-text" class="trib-subtitle">Di chuyển Trái / Phải để né Thiên Lôi & hứng Kim Quang!</p>
+        </div>
+        <div class="trib-hud-right">
+          <div id="tribulation-hearts" class="trib-hearts">🛡️🛡️🛡️</div>
+          <div id="tribulation-timer" class="trib-timer">9.0s</div>
+        </div>
+      </div>
+
+      <div id="tribulation-arena" class="tribulation-arena">
+        <div class="trib-clouds-top"></div>
+        <canvas id="tribulation-canvas" class="trib-canvas"></canvas>
+        <div id="tribulation-player" class="trib-player">
+          <img id="tribulation-player-img" src="assets/stickers/01_nam_im_lang.png" alt="Tu sĩ độ kiếp" />
+          <span class="trib-shield-ring"></span>
+        </div>
+      </div>
+
+      <div class="trib-bottom-bar">
+        <button id="btn-trib-shield" class="btn-ancient-sm affordable">🛡️ Hộ Thể Kim Quang (Phím Space)</button>
+        <span id="tribulation-footer-hint" class="trib-footer-hint">Hết khiên sẽ bị đánh tụt 1 tầng cảnh giới!</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. MINIGAME CHẾ TÁC (LUYỆN ĐAN / RÈN PHÁP BẢO / VẼ LINH PHÙ) -->
+  <div id="crafting-minigame-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card" style="max-width:500px;text-align:center;">
+      <h3 id="craft-mg-title" class="trib-title" style="color:var(--bronze-light);">⚗️ Khống Hỏa Ngưng Đan</h3>
+      <p id="craft-mg-subtitle" class="trib-subtitle" style="margin:6px 0 12px;"></p>
+      <div id="craft-mg-body" class="craft-mg-body"></div>
+      <button id="craft-mg-action-btn" class="btn-ancient-wide ready" style="margin-top:12px;">🔥 Chưởng Hỏa!</button>
+    </div>
+  </div>
+
+  <!-- 12. BẢNG TRƯỢT NGỌC GIẢN (SLIDE-UP DRAWER) -->
+  <div id="drawer-backdrop" class="drawer-backdrop hidden">
+    <div id="jade-drawer" class="jade-drawer">
+      <div class="jade-drawer-header">
+        <h2 id="jade-drawer-title" class="jade-drawer-title">Tàng Kinh Các</h2>
+        <button id="jade-drawer-close" class="jade-drawer-close" aria-label="Đóng bảng">✕</button>
+      </div>
+
+      <div class="jade-drawer-body">
+        <div id="panel-upgrades" class="drawer-panel-content">
+          <div id="upgrades-list" class="jade-cards-stack"></div>
+        </div>
+
+        <div id="panel-fields" class="drawer-panel-content">
+          <div id="fields-panel-container"></div>
+        </div>
+
+        <div id="panel-inventory" class="drawer-panel-content">
+          <div id="inventory-panel-container"></div>
+        </div>
+
+        <div id="panel-prestige" class="drawer-panel-content">
+          <div id="prestige-summary"></div>
+          <h4 class="ancient-section-title">✨ Pháp Bảo & Đại Đạo Vĩnh Viễn</h4>
+          <div id="prestige-upgrades-list" class="jade-cards-stack"></div>
+        </div>
+
+        <div id="panel-roadmap" class="drawer-panel-content">
+          <div id="realms-roadmap-list"></div>
+        </div>
+
+        <div id="panel-profile" class="drawer-panel-content">
+          <div id="profile-content"></div>
+        </div>
+
+        <div id="panel-system" class="drawer-panel-content">
+          <h4 class="ancient-section-title">⚙️ Cài Đặt Hệ Thống & Hiển Thị</h4>
+          <div class="scroll-box">
+            <div class="save-buttons-grid">
+              <button id="btn-setting-music" class="btn-ancient-sm affordable">🎵 Nhạc Nền (BGM): Bật</button>
+              <button id="btn-setting-sfx" class="btn-ancient-sm affordable">🔊 Âm Thanh Hiệu Ứng: Bật</button>
+              <button id="btn-setting-notif" class="btn-ancient-sm affordable">🔔 Thông Báo Nổi: Bật</button>
+              <button id="btn-toggle-detail-desc" class="btn-ancient-sm">📖 Mô Tả Trong Bảng: Tóm Tắt</button>
+              <button id="btn-toggle-fx" class="btn-ancient-sm affordable">✨ Hiệu Ứng Hạt: Cao</button>
+              <button id="btn-toggle-format" class="btn-ancient-sm affordable">🔢 Đơn Vị Số: Vạn, Ức</button>
+              <button id="btn-save-now" class="btn-ancient-sm">💾 Lưu Game Ngay</button>
+              <button id="btn-export-save" class="btn-ancient-sm">📤 Xuất Mã Base64</button>
+              <button id="btn-import-save" class="btn-ancient-sm">📥 Nhập Mã Base64</button>
+            </div>
+            <textarea id="save-base64-textarea" class="save-textarea" rows="2" placeholder="Nhấn 'Xuất Mã Base64' để sao lưu hoặc dán mã Base64 vào đây rồi nhấn 'Nhập Mã Base64'..."></textarea>
+            <div style="text-align:right;margin-top:6px;">
+              <button id="btn-hard-reset" class="btn-ancient-sm" style="border-color:#e11d48;color:#fda4af;">🗑️ Xóa Save (Tu Lại Từ Đầu)</button>
+            </div>
+          </div>
+
+          <h4 class="ancient-section-title">📜 Mục Giải Thích Chi Tiết (Cẩm Nang Tu Tiên)</h4>
+          <div id="detailed-guide-container"></div>
+
+          <h4 class="ancient-section-title">📖 Nhật Ký Động Phủ</h4>
+          <div id="cultivation-log-list" class="log-box"></div>
+
+          <h4 class="ancient-section-title">🏆 Thành Tựu Tu Tiên</h4>
+          <div id="achievements-list" class="jade-cards-stack"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MENU BÊN PHẢI -->
+  <aside class="side-menu">
+    <button id="btn-quick-expedition" class="side-extra expedition-quick-btn" title="Mở Bản Đồ Bí Cảnh Hồng Hoang">
+      <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20l-5 1 1-5L14.5 4.5zM13 6l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span class="slot-label">Xuất Quan</span>
+    </button>
+      <nav id="hotbar-submenu-wrap" class="ancient-hotbar" aria-label="Các mục phụ">
+        <button class="hotbar-slot" data-panel="upgrades">
+          <span class="slot-hotkey">1</span>
+          <span id="dot-upgrades" class="hotbar-dot"></span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          <span class="slot-label">Công Pháp</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="fields">
+          <span class="slot-hotkey">2</span>
+          <span id="dot-fields" class="hotbar-dot"></span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M9 3h6m-5 0v5.2L5.2 16A3 3 0 0 0 7.8 20.5h8.4A3 3 0 0 0 18.8 16L14 8.2V3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="slot-label">Lĩnh Vực</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="inventory">
+          <span class="slot-hotkey">3</span>
+          <span id="dot-inventory" class="hotbar-dot"></span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M6 7h12l2 13H4L6 7zm3 0V5a3 3 0 0 1 6 0v2m-5 5h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="slot-label">Túi Đồ</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="prestige">
+          <span class="slot-hotkey">4</span>
+          <span id="dot-prestige" class="hotbar-dot"></span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 3a4.5 4.5 0 0 1 0 9 4.5 4.5 0 0 0 0 9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/><circle cx="12" cy="16.5" r="1.2" fill="currentColor"/></svg>
+          <span class="slot-label">Luân Hồi</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="roadmap">
+          <span class="slot-hotkey">5</span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M3 19l6-8 4 5 5-7 3 10H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="17" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span class="slot-label">Cảnh Giới</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="profile">
+          <span class="slot-hotkey">6</span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="slot-label">Hồ Sơ</span>
+        </button>
+
+        <button class="hotbar-slot" data-panel="system">
+          <span class="slot-hotkey">7</span>
+          <svg class="slot-svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="slot-label">Hệ Thống</span>
+        </button>
+      </nav>
+  </aside>
+
+  <!-- 13. THANH TIẾN TRÌNH ĐỘT PHÁ & MENU CHÍNH THU GỌN / BUNG RA Ở DƯỚI MÀN HÌNH -->
+  <footer class="hud-bottom-dock">
+    <div class="breakthrough-jade-bar">
+      <div class="jade-bar-top-row">
+        <span id="qi-progress-text">Linh Mạch: 0 / 120</span>
+        <span id="qi-progress-pct">0.0%</span>
+      </div>
+      <div class="jade-progress-track">
+        <div id="qi-progress-fill" class="jade-progress-fill"></div>
+      </div>
+      <div class="breakthrough-action-row">
+        <span id="breakthrough-chance-text" class="breakthrough-chance-note">Tiểu cảnh giới lên 【Luyện Nhục】 • Thành công: 100%</span>
+        <button id="btn-breakthrough" class="btn-breakthrough-jade" disabled>✦ Đột Phá Cảnh Giới</button>
+      </div>
+    </div>
+
+    <div class="bottom-menu-bar">
+      <button id="btn-main-menu-toggle" class="btn-main-menu-toggle" title="Phím tắt M">
+        <span id="dot-main-menu" class="hotbar-dot"></span>
+        <span class="menu-toggle-label">☰ Menu Đạo Lộ</span>
+      </button>
+
+    </div>
+  </footer>
+
+  <!-- HỘP THOẠI POPUP -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 id="modal-title" class="modal-title">Thông Báo</h3>
+      <div id="modal-body" class="modal-body"></div>
+      <button id="modal-close-btn" class="btn-ancient-sm affordable" style="padding:8px 22px;">Đóng</button>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Nạp tuần tự các module JS thuần -->
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/data/realms.js"></script>
+  <script src="js/data/upgrades.js"></script>
+  <script src="js/data/roots.js"></script>
+  <script src="js/data/aptitudes.js"></script>
+  <script src="js/data/fields.js"></script>
+  <script src="js/data/achievements.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/character.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/crafting_minigame.js"></script>
+  <script src="js/fields.js"></script>
+  <script src="js/tribulation.js"></script>
+  <script src="js/cultivate.js"></script>
+  <script src="js/breakthrough.js"></script>
+  <script src="js/upgrades.js"></script>
+  <script src="js/prestige.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/data/map_tiles.js"></script>
+  <script src="js/expedition.js"></script>
+  <script src="js/hotbar.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/profile.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
