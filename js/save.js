@@ -14,6 +14,15 @@ window.TuTien.Save = {
       if (!data) return false;
       data.lastSavedAt = Date.now();
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      
+      if (State.data.inventory && Array.isArray(State.data.inventory.items)) {
+        State.data.inventory.items.forEach(it => {
+          if (it.icon === '🪨' || it.templateId === 'da_khoang') it.icon = '⛰️';
+          if (it.icon === '🪵' || it.templateId === 'go_linh_moc') it.icon = '🌲';
+          if (it.icon === '🪙' || it.templateId === 'vang_tinh_kim') it.icon = '🌕';
+        });
+      }
+
       return true;
     } catch (err) {
       console.warn('Không thể lưu vào localStorage:', err);
@@ -129,6 +138,16 @@ window.TuTien.Save = {
         window.TuTien.State.data.totalQiThisRun || window.TuTien.State.data.qi || 0;
     }
 
+    if (window.TuTien.Inventory && window.TuTien.FORGE_MATERIALS) {
+      const hasAnyMat = window.TuTien.FORGE_MATERIALS.some(m => window.TuTien.Inventory.getMaterialCountById(m.id) > 0);
+      if (!hasAnyMat) {
+        const q1 = window.TuTien.ITEM_QUALITIES[0];
+        window.TuTien.FORGE_MATERIALS.forEach(mat => {
+          const initQty = mat.id === "vang_tinh_kim" ? 1 : 3;
+          window.TuTien.Inventory.addStackableItem("material", mat.id, mat.name, mat.icon, q1, mat.desc, initQty);
+        });
+      }
+    }
     window.TuTien.State.resetRuntime();
 
     if (checkOffline && parsed.lastSavedAt) {

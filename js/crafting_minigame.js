@@ -1,39 +1,37 @@
 /**
  * js/crafting_minigame.js
- * Hệ thống 3 Minigame Chế Tác tương tác quyết định Phẩm Chất (Hạ -> Tiên Phẩm) khi:
+ * Hệ thống 3 Minigame Chế Tác tương tác quyết định điểm kỹ thuật khi:
  * 1. Luyện Đan ("Khống Hỏa Ngưng Đan"): Canh kim nhiệt độ dừng trong vùng Tâm Hỏa Vàng Kim (3 nhịp).
  * 2. Rèn Pháp Bảo ("Thiên Chùy Đoán Tạo"): Canh vòng linh quang thu nhỏ trùng khít vành Đê Rèn (3 nhát búa).
  * 3. Vẽ Linh Phù ("Chu Sa Họa Phù"): Chạm nối nhanh 5 Huyền Ấn (1 -> 5) trên lá bùa trước khi hết giờ.
+ * Lưu ý: Phẩm chất cuối cùng phụ thuộc chặt chẽ vào Cấp Lĩnh Vực (Nhất -> Cửu Phẩm) và Năng Khiếu!
  */
 window.TuTien = window.TuTien || {};
 
 window.TuTien.CraftingMinigame = {
   active: false,
-  mode: null, // 'alchemy' | 'forging' | 'talisman'
+  mode: null,
+  masteryRank: 1,
   onCompleteCallback: null,
 
-  // Trạng thái chung
   round: 1,
   maxRounds: 3,
   scores: [],
 
-  // 1. Trạng thái Khống Hỏa (Alchemy)
   cursorPos: 0,
   cursorDir: 1,
-  cursorSpeed: 95,
-  targetStart: 38,
-  targetWidth: 24,
+  cursorSpeed: 108,
+  targetStart: 42,
+  targetWidth: 16,
 
-  // 2. Trạng thái Giáng Chùy (Forging)
   ringRadiusPct: 100,
-  ringSpeed: 82,
-  sweetRadiusPct: 38,
+  ringSpeed: 88,
+  sweetRadiusPct: 36,
 
-  // 3. Trạng thái Họa Phù (Talisman)
   nodes: [],
   nextNodeIndex: 0,
-  talismanTimerMs: 6500,
-  talismanTotalMs: 6500,
+  talismanTimerMs: 6000,
+  talismanTotalMs: 6000,
 
   overlayEl: null,
   titleEl: null,
@@ -56,55 +54,48 @@ window.TuTien.CraftingMinigame = {
     }
   },
 
-  /**
-   * Mở Minigame chế tác
-   * @param {string} mode - 'alchemy' | 'forging' | 'talisman'
-   * @param {string} itemName - Tên vật phẩm đang chế tác
-   * @param {number} masteryRank - Phẩm cấp thông thạo hiện tại (1 -> 9)
-   * @param {Function} onComplete - Hàm nhận điểm trung bình (0.0 -> 1.0)
-   */
   start(mode, itemName, masteryRank, onComplete) {
     if (!this.overlayEl) this.init();
     if (!this.overlayEl) {
-      if (onComplete) onComplete(0.65);
+      if (onComplete) onComplete(0.5);
       return;
     }
 
     this.active = true;
     this.mode = mode;
+    this.masteryRank = masteryRank || 1;
     this.onCompleteCallback = onComplete;
     this.round = 1;
     this.maxRounds = 3;
     this.scores = [];
 
     if (mode === 'alchemy') {
-      // Cấp Đan Sư càng cao, vùng Tâm Hỏa Vàng Kim càng rộng
-      this.targetWidth = Math.min(38, 18 + masteryRank * 2);
+      // Cấp Đan Sư thấp thì vùng Tâm Hỏa hẹp hơn, đòi hỏi luyện tập và nâng cấp Đan Sư
+      this.targetWidth = Math.min(30, 11 + this.masteryRank * 2);
       this.targetStart = 50 - this.targetWidth / 2;
-      this.cursorPos = 10;
+      this.cursorPos = 8;
       this.cursorDir = 1;
-      this.cursorSpeed = 95;
+      this.cursorSpeed = 108;
 
       this.titleEl.textContent = `⚗️ Khống Hỏa Ngưng Đan: ${itemName}`;
-      this.subtitleEl.textContent = `Nhịp 1/${this.maxRounds} — Bấm "🔥 Chưởng Hỏa" đúng lúc thanh sáng nằm trong vùng Tâm Hỏa Vàng!`;
+      this.subtitleEl.textContent = `Nhịp 1/${this.maxRounds} (Đan Sư Phẩm ${this.masteryRank}) — Canh thanh sáng vào đúng vùng Tâm Hỏa!`;
       this.actionBtn.classList.remove('hidden');
       this.actionBtn.textContent = '🔥 Chưởng Hỏa Ngưng Đan!';
       this.renderAlchemyDOM();
     } else if (mode === 'forging') {
       this.ringRadiusPct = 100;
-      this.ringSpeed = 78;
+      this.ringSpeed = 84;
       this.sweetRadiusPct = 36;
 
       this.titleEl.textContent = `🔨 Thiên Chùy Đoán Tạo: ${itemName}`;
-      this.subtitleEl.textContent = `Nhát búa 1/${this.maxRounds} — Bấm "🔨 Giáng Chùy" khi vòng linh quang chạm vành tâm Vàng!`;
+      this.subtitleEl.textContent = `Nhát búa 1/${this.maxRounds} (Luyện Khí Phẩm ${this.masteryRank}) — Canh vòng sáng chạm vành tâm Vàng!`;
       this.actionBtn.classList.remove('hidden');
       this.actionBtn.textContent = '🔨 Giáng Chùy!';
       this.renderForgingDOM();
     } else if (mode === 'talisman') {
-      this.talismanTotalMs = 5500 + masteryRank * 300;
+      this.talismanTotalMs = 5000 + this.masteryRank * 300;
       this.talismanTimerMs = this.talismanTotalMs;
       this.nextNodeIndex = 0;
-      // 5 đỉnh ngôi sao ngũ giác trên lá bùa
       this.nodes = [
         { x: 50, y: 16, done: false },
         { x: 82, y: 40, done: false },
@@ -114,7 +105,7 @@ window.TuTien.CraftingMinigame = {
       ];
 
       this.titleEl.textContent = `📜 Chu Sa Họa Phù: ${itemName}`;
-      this.subtitleEl.textContent = 'Chạm lần lượt vào các Huyền Ấn từ 1 → 5 để tụ linh thành phù!';
+      this.subtitleEl.textContent = `Phù Sư Phẩm ${this.masteryRank} — Chạm nối các Huyền Ấn từ 1 → 5!`;
       this.actionBtn.classList.add('hidden');
       this.renderTalismanDOM();
     }
@@ -130,7 +121,7 @@ window.TuTien.CraftingMinigame = {
           <div class="mg-heat-zone" style="left:${this.targetStart}%;width:${this.targetWidth}%"></div>
           <div id="mg-heat-cursor" class="mg-heat-cursor" style="left:${this.cursorPos}%"></div>
         </div>
-        <div id="mg-round-feedback" class="mg-feedback-txt">Canh chuẩn vùng vàng kim để đạt Tiên Phẩm!</div>
+        <div id="mg-round-feedback" class="mg-feedback-txt">Phẩm chất phụ thuộc vào Cấp Đan Sư, Năng Khiếu & độ chuẩn Tâm Hỏa!</div>
       </div>
     `;
   },
@@ -190,22 +181,18 @@ window.TuTien.CraftingMinigame = {
     this.nextNodeIndex += 1;
 
     if (this.nextNodeIndex >= this.nodes.length) {
-      // Hoàn thành cả 5 ấn: tính điểm theo phần trăm thời gian còn lại
       const timeRatio = window.TuTien.Utils.clamp(
         this.talismanTimerMs / this.talismanTotalMs,
         0,
         1
       );
-      const finalScore = Math.min(1.0, 0.55 + timeRatio * 0.55);
+      const finalScore = Math.min(1.0, 0.35 + timeRatio * 0.65);
       this.finishMinigame(finalScore);
     } else {
       this.renderTalismanDOM();
     }
   },
 
-  /**
-   * Xử lý khi người chơi bấm nút Chưởng Hỏa (Luyện Đan) hoặc Giáng Chùy (Rèn Pháp Bảo)
-   */
   handleActionTrigger() {
     if (!this.active) return;
 
@@ -213,18 +200,18 @@ window.TuTien.CraftingMinigame = {
       const center = 50;
       const dist = Math.abs(this.cursorPos - center);
       const halfZone = this.targetWidth / 2;
-      let score = 0.25;
-      let label = 'Lệch tâm hỏa (Hạ Phẩm)';
+      let score = 0.20;
+      let label = 'Lệch tâm hỏa (Tỉ lệ cao ra Hạ Phẩm)';
 
-      if (dist <= halfZone * 0.45) {
+      if (dist <= halfZone * 0.40) {
         score = 1.0;
-        label = '🔥 Hỏa Hầu Hoàn Mỹ! (+Tiên Phẩm)';
+        label = '🔥 Chuẩn Tâm Hỏa! (Tối ưu theo cấp Đan Sư hiện tại)';
       } else if (dist <= halfZone) {
-        score = 0.82;
-        label = '✨ Trúng Tâm Hỏa! (+Thượng/Cực Phẩm)';
-      } else if (dist <= halfZone * 1.6) {
-        score = 0.52;
-        label = 'Hỏa lực tạm ổn (+Trung Phẩm)';
+        score = 0.72;
+        label = '✨ Trúng vùng Tâm Hỏa!';
+      } else if (dist <= halfZone * 1.45) {
+        score = 0.45;
+        label = 'Hỏa lực hơi lệch';
       }
 
       this.scores.push(score);
@@ -233,7 +220,7 @@ window.TuTien.CraftingMinigame = {
 
       if (this.round < this.maxRounds) {
         this.round += 1;
-        this.cursorSpeed += 22;
+        this.cursorSpeed += 26;
         this.subtitleEl.textContent = `Nhịp ${this.round}/${this.maxRounds} — Tiếp tục canh vùng Tâm Hỏa!`;
       } else {
         const avg = this.scores.reduce((a, b) => a + b, 0) / this.scores.length;
@@ -241,18 +228,18 @@ window.TuTien.CraftingMinigame = {
       }
     } else if (this.mode === 'forging') {
       const diff = Math.abs(this.ringRadiusPct - this.sweetRadiusPct);
-      let score = 0.25;
-      let label = 'Nhát búa hơi non/già';
+      let score = 0.20;
+      let label = 'Nhát búa lệch nhịp (Tỉ lệ cao ra Hạ Phẩm)';
 
-      if (diff <= 8) {
+      if (diff <= 6) {
         score = 1.0;
-        label = '🔨 Thiên Chùy Hoàn Mỹ! (+Tiên Phẩm)';
-      } else if (diff <= 16) {
-        score = 0.80;
-        label = '✨ Chuẩn xác! (+Thượng/Cực Phẩm)';
-      } else if (diff <= 26) {
-        score = 0.50;
-        label = 'Tạm ổn (+Trung Phẩm)';
+        label = '🔨 Thiên Chùy Chuẩn Xác! (Tối ưu theo cấp Luyện Khí)';
+      } else if (diff <= 14) {
+        score = 0.72;
+        label = '✨ Khá chuẩn xác!';
+      } else if (diff <= 22) {
+        score = 0.45;
+        label = 'Hơi non/già tay';
       }
 
       this.scores.push(score);
@@ -262,7 +249,7 @@ window.TuTien.CraftingMinigame = {
       if (this.round < this.maxRounds) {
         this.round += 1;
         this.ringRadiusPct = 100;
-        this.ringSpeed += 18;
+        this.ringSpeed += 22;
         this.subtitleEl.textContent = `Nhát búa ${this.round}/${this.maxRounds} — Canh vòng sáng chạm vành vàng!`;
       } else {
         const avg = this.scores.reduce((a, b) => a + b, 0) / this.scores.length;
@@ -271,9 +258,6 @@ window.TuTien.CraftingMinigame = {
     }
   },
 
-  /**
-   * Cập nhật chuyển động kim nhiệt độ / vòng rèn / thời gian vẽ phù mỗi khung hình
-   */
   update(dtMs) {
     if (!this.active) return;
     const dtSec = dtMs / 1000;
@@ -308,7 +292,7 @@ window.TuTien.CraftingMinigame = {
         timerEl.textContent = `Thời gian tụ bút: ${(this.talismanTimerMs / 1000).toFixed(1)}s`;
       }
       if (this.talismanTimerMs <= 0) {
-        const progressScore = (this.nextNodeIndex / this.nodes.length) * 0.6;
+        const progressScore = (this.nextNodeIndex / this.nodes.length) * 0.45;
         this.finishMinigame(progressScore);
       }
     }

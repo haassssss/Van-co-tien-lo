@@ -163,6 +163,13 @@ window.TuTien.State = {
         3
       );
     }
+    if (window.TuTien.Inventory && window.TuTien.FORGE_MATERIALS) {
+      const q1 = window.TuTien.ITEM_QUALITIES[0];
+      window.TuTien.FORGE_MATERIALS.forEach(mat => {
+        const initQty = mat.id === "vang_tinh_kim" ? 1 : 3;
+        window.TuTien.Inventory.addStackableItem("material", mat.id, mat.name, mat.icon, q1, mat.desc, initQty);
+      });
+    }
     this.resetRuntime();
     this.addLog('Bắt đầu bước lên con đường Tu Tiên nghịch thiên cải mệnh!');
   },

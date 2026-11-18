@@ -348,56 +348,67 @@ window.TuTien.Fields = {
     return true;
   },
 
-  getForgeArtifactCost() {
+  getForgeArtifactCost(recipeId = "thanh_van_kiem") {
     const count = window.TuTien.State.data.fields.artifactsForged || 0;
-    return Math.round(260 * Math.pow(1.62, count));
+    const recipes = window.TuTien.ARTIFACT_RECIPES || [];
+    const rec = recipes.find(r => r.id === recipeId) || recipes[0];
+    const base = (rec && rec.qiCostBase) || 220;
+    return Math.round(base * Math.pow(1.45, count));
   },
 
-  forgeArtifact() {
+  /**
+   * Đúc Pháp Bảo Bản Mệnh từ nguyên liệu Sắt, Đá, Gỗ, Vàng (`ARTIFACT_RECIPES`)
+   */
+  forgeArtifact(recipeId = "thanh_van_kiem") {
     const Inv = window.TuTien.Inventory;
-    const remCd = Inv.getRemainingCooldownSec('artifact');
+    const remCd = Inv.getRemainingCooldownSec("artifact");
     if (remCd > 0) {
-      window.TuTien.UI.showToast(`Đỉnh luyện khí đang nung, chờ ${remCd.toFixed(1)}s nữa!`, 'warn');
+      window.TuTien.UI.showToast(`Đỉnh luyện khí đang nung, chờ ${remCd.toFixed(1)}s nữa!`, "warn");
       return false;
     }
 
+    const recipes = window.TuTien.ARTIFACT_RECIPES || [];
+    const recipe = recipes.find(r => r.id === recipeId) || recipes[0];
+    if (!recipe) return false;
+
     const State = window.TuTien.State;
     const fieldsState = State.data.fields;
-    const cost = this.getForgeArtifactCost();
-    const herbCost = 3;
-    const haveHerbs = Inv.getHerbCountById('tu_linh_thao');
+    const cost = this.getForgeArtifactCost(recipe.id);
 
-    if (State.data.qi < cost || haveHerbs < herbCost) {
+    if (!Inv.canAffordMaterials(recipe.materials) || State.data.qi < cost) {
+      const reqStr = recipe.materials
+        .map(m => `${m.count} ${m.icon} ${m.name} (có ${Inv.getMaterialCountById(m.id)})`)
+        .join(", ");
       window.TuTien.UI.showToast(
-        `Cần ${window.TuTien.Utils.formatNumber(cost)} Linh Khí và ${herbCost} Tụ Linh Thảo 🌿 (có ${haveHerbs}) để đúc Pháp Bảo!`,
-        'warn'
+        `Cần ${reqStr} và ${window.TuTien.Utils.formatNumber(cost)} Linh Khí để rèn ${recipe.name}!`,
+        "warn"
       );
       return false;
     }
 
-    const avgHerbTier = Inv.consumeHerbsById('tu_linh_thao', herbCost) || 1;
+    const avgMatTier = Inv.consumeMaterialsList(recipe.materials) || 1;
     State.data.qi -= cost;
     fieldsState.artifactsForged = (fieldsState.artifactsForged || 0) + 1;
-    Inv.triggerCooldown('artifact');
+    Inv.triggerCooldown("artifact");
 
-    const smithRank = this.getFieldState('luyen_khi').rank;
+    const smithRank = this.getFieldState("luyen_khi").rank;
 
-    window.TuTien.CraftingMinigame.start('forging', 'Pháp Bảo Bản Mệnh', smithRank, scoreRatio => {
-      const quality = Inv.rollItemQuality('luyen_khi', scoreRatio, avgHerbTier);
-      const created = Inv.addArtifactItem(quality, smithRank);
+    window.TuTien.CraftingMinigame.start("forging", recipe.name, smithRank, scoreRatio => {
+      const quality = Inv.rollItemQuality("luyen_khi", scoreRatio, avgMatTier);
+      const created = Inv.addArtifactItem(quality, smithRank, recipe.id);
 
-      this.addFieldExp('luyen_khi', 35 + fieldsState.artifactsForged * 10);
+      this.addFieldExp("luyen_khi", 35 + fieldsState.artifactsForged * 10);
       if (window.TuTien.Audio) window.TuTien.Audio.playCraftSuccess(quality.tier);
 
       State.addLog(
         `🗡️ Đoán tạo thành công 【${created.name} — ${quality.name}】 (${created.effectDesc})!`,
-        'success'
+        "success"
       );
       if (window.TuTien.UI) {
         window.TuTien.UI.showToast(
           `Đúc thành công: ${created.name} [${quality.name}]! Xem tại Túi Đồ.`,
-          'success',
-          quality.tier >= 4 ? 'happy' : 'normal'
+          "success",
+          quality.tier >= 4 ? "happy" : "normal"
         );
         window.TuTien.UI.updateAll();
       }

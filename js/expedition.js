@@ -1,66 +1,487 @@
 /**
  * js/expedition.js
- * Hệ thống "🗡️ Bí Cảnh Hồng Hoang" — Bản Đồ Pixel-Art 2000×2000 & Màn Hình Chiến Đấu Tu Tiên:
- * - Tích hợp trọn bộ 32 Sprite Di Chuyển 4 hướng (Lên, Xuống, Trái, Phải × 4 frame) cho cả Nam và Nữ (`assets/sprites_walk/{nam|nu}/...`).
- * - Màn hình chiến đấu Linh Đài thoáng đãng:
- *   + Chính giữa phía trên: Lệnh bài "❖ HIỆP X ❖".
- *   + Cột Trái (Người Chơi): Thanh Máu & Linh Lực của mình nằm ngay TRÊN ĐẦU nhân vật của mình.
- *   + Cột Phải (Kẻ Địch): Kẻ địch đứng trên bệ Linh Trận phía trên, Thanh Máu của địch nằm ngay DƯỚI CHÂN địch.
+ * TÍNH NĂNG "XUẤT QUAN — BẢN ĐỒ TÂN THỦ" (CHẾ ĐỘ CHƠI ĐƠN OFFLINE)
+ * - Giao diện phóng to toàn màn hình (96vw × 94vh), thanh công cụ tóm gọn 1 dòng duy nhất kèm nút thu gọn "📊 Chỉ Số ▾".
+ * - Quái (Yêu Thú) & Tu Sĩ (Tán Tu) spawn tọa độ (X, Y) ngẫu nhiên; khi đánh thắng/thua sẽ TỰ ĐỘNG THOÁT POPUP ra bản đồ và thông báo chiến lợi phẩm.
+ * - Bí Cảnh Ngẫu Nhiên chia 5 Cấp Độ (Hạ Phẩm -> Tiên Phẩm Thái Cổ), đếm ngược thời gian thực mỗi khung hình qua hàm update(dtMs).
  */
 window.TuTien = window.TuTien || {};
 
 window.TuTien.Expedition = {
-  WORLD_W: 2000,
-  WORLD_H: 2000,
-  FOG_SCALE: 4,
-  REVEAL_RADIUS: 255,
-  REFRESH_INTERVAL_MS: 5 * 60 * 1000,
+  MAP_WIDTH: 1120,
+  MAP_HEIGHT: 1490,
+  ACTIVE_MOB_COUNT: 8,
 
   isOpen: false,
-  statsExpanded: false,
-  mapSeed: Date.now(),
-  tileImages: {},
-  walkSpriteCache: {},
-  tilesLoaded: false,
+  statsDropdownOpen: false,
+  cursorX: 560,
+  cursorY: 745,
 
-  playerX: 1000,
-  playerY: 1060,
-  targetX: 1000,
-  targetY: 1060,
-  cameraX: 0,
-  cameraY: 0,
-  isMoving: false,
-  facingDir: 'down',
-  walkFrame: 0,
-  walkAnimTimerMs: 0,
-  pendingNodeId: null,
+  // Trạng thái trượt cảm ứng / kéo bản đồ
+  isDraggingMap: false,
+  dragMoved: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  dragStartScrollLeft: 0,
+  dragStartScrollTop: 0,
 
-  refreshRemainingMs: 5 * 60 * 1000,
-  exploredPoints: [],
-  nodes: [],
-  merchantStock: [],
-  activeView: 'map',
+  // Máu và Linh lực hiện tại của nhân vật trong phiên Xuất Quan
+  playerCurrentHp: null,
+  playerCurrentMp: null,
 
-  inCombat: false,
-  autoBattle: false,
-  autoBattleTimerMs: 0,
-  combatState: null,
-  combatExitTimeout: null,
+  // Danh sách các bãi Quái & Tu Sĩ đang sinh ra ngẫu nhiên trên bản đồ
+  mobSpots: [],
+  selectedMobId: null,
+  combatRunning: false,
+
+  // Trạng thái Bí Cảnh Ngẫu Nhiên 5 Cấp Độ
+  secretRealm: null,
+  nextSecretSpawnMs: 7000, // Lần đầu xuất hiện sau 7 giây
+  lastLootBannerHtml: '',
 
   overlayEl: null,
-  viewportEl: null,
-  worldLayerEl: null,
-  terrainCanvasEl: null,
-  fogCanvasEl: null,
-  fogCtx: null,
-  minimapCanvasEl: null,
-  minimapCtx: null,
-  nodesLayerEl: null,
-  playerTokenEl: null,
-  playerSpriteImgEl: null,
-  targetMarkerEl: null,
-  combatViewEl: null,
-  merchantViewEl: null,
+  mapScrollEl: null,
+  mapCanvasEl: null,
+  coordDisplayEl: null,
+  anomalyBannerEl: null,
+  secretTimerChipEl: null,
+  statsPopoverEl: null,
+  mobsLayerEl: null,
+  secretLayerEl: null,
+  popupOverlayEl: null,
+  bagModalEl: null,
+  forgeModalEl: null,
+
+  // ===========================================================================
+  // PHẦN 1: DỮ LIỆU MẪU QUÁI & TU SĨ (SPAWN NGẪU NHIÊN) + 5 CẤP ĐỘ BÍ CẢNH
+  // ===========================================================================
+
+  MOB_POOL_DEFS: [
+    {
+      poolId: 'mob_yeu_lang',
+      entityType: 'monster',
+      svgKey: 'wolf',
+      name: 'Thanh Phong Yêu Lang',
+      realm: 'Luyện Khí Tầng 1',
+      realmLevel: 1,
+      maxHp: 65,
+      maxMp: 30,
+      attack: 6,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.78, minQty: 1, maxQty: 2, maxTier: 2 },
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.65, minQty: 1, maxQty: 2, maxTier: 2 },
+        { id: 'tu_linh_thao', name: 'Tụ Linh Thảo', icon: '🌿', category: 'herb', typeLabel: 'Nguyên liệu Luyện Đan', chance: 0.72, minQty: 1, maxQty: 2, maxTier: 2 }
+      ]
+    },
+    {
+      poolId: 'mob_tan_tu_nam',
+      entityType: 'cultivator',
+      gender: 'male',
+      svgKey: 'cultivator_male',
+      name: 'Lục Thủy Kiếm Khách',
+      realm: 'Luyện Khí Tầng 2',
+      realmLevel: 2,
+      maxHp: 115,
+      maxMp: 55,
+      attack: 11,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.80, minQty: 1, maxQty: 2, maxTier: 2 },
+        { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.65, minQty: 1, maxQty: 2, maxTier: 2 },
+        { id: 'pha_chuong_qua', name: 'Phá Chướng Quả', icon: '🌺', category: 'herb', typeLabel: 'Nguyên liệu Luyện Đan', chance: 0.55, minQty: 1, maxQty: 2, maxTier: 2 }
+      ]
+    },
+    {
+      poolId: 'mob_doc_xa',
+      entityType: 'monster',
+      svgKey: 'snake',
+      name: 'Bích Lân Độc Xà',
+      realm: 'Luyện Khí Tầng 3',
+      realmLevel: 3,
+      maxHp: 175,
+      maxMp: 75,
+      attack: 16,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.75, minQty: 1, maxQty: 2, maxTier: 3 },
+        { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.60, minQty: 1, maxQty: 2, maxTier: 3 },
+        { id: 'huyet_ngoc_sam', name: 'Huyết Ngọc Sâm', icon: '🍄', category: 'herb', typeLabel: 'Nguyên liệu Luyện Đan', chance: 0.58, minQty: 1, maxQty: 2, maxTier: 3 }
+      ]
+    },
+    {
+      poolId: 'mob_huyet_lang',
+      entityType: 'monster',
+      svgKey: 'wolf',
+      name: 'Huyết Nguyệt Ma Lang',
+      realm: 'Luyện Khí Tầng 4',
+      realmLevel: 4,
+      maxHp: 255,
+      maxMp: 95,
+      attack: 23,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.80, minQty: 1, maxQty: 3, maxTier: 3 },
+        { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.70, minQty: 1, maxQty: 2, maxTier: 3 },
+        { id: 'huyet_ngoc_sam', name: 'Huyết Ngọc Sâm', icon: '🍄', category: 'herb', typeLabel: 'Nguyên liệu Luyện Đan', chance: 0.65, minQty: 1, maxQty: 2, maxTier: 3 }
+      ]
+    },
+    {
+      poolId: 'mob_thach_tinh',
+      entityType: 'monster',
+      svgKey: 'golem',
+      name: 'Huyền Nham Thạch Tinh',
+      realm: 'Luyện Khí Tầng 5',
+      realmLevel: 5,
+      maxHp: 350,
+      maxMp: 120,
+      attack: 30,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 3, maxTier: 3 },
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.72, minQty: 1, maxQty: 3, maxTier: 3 },
+        { id: 'vang_tinh_kim', name: 'Thái Ất Tinh Kim (Vàng)', icon: '🌕', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo Quý', chance: 0.42, minQty: 1, maxQty: 1, maxTier: 3 },
+        { id: 'loi_tam_thao', name: 'Lôi Tâm Thảo', icon: '⚡', category: 'herb', typeLabel: 'Nguyên liệu Luyện Đan', chance: 0.50, minQty: 1, maxQty: 2, maxTier: 3 }
+      ]
+    },
+    {
+      poolId: 'mob_tan_tu_nu',
+      entityType: 'cultivator',
+      gender: 'female',
+      svgKey: 'cultivator_female',
+      name: 'Bích Nguyệt Tiên Tử',
+      realm: 'Luyện Khí Tầng 6',
+      realmLevel: 6,
+      maxHp: 520,
+      maxMp: 165,
+      attack: 44,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'vang_tinh_kim', name: 'Thái Ất Tinh Kim (Vàng)', icon: '🌕', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo Quý', chance: 0.62, minQty: 1, maxQty: 2, maxTier: 4 },
+        { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.75, minQty: 2, maxQty: 3, maxTier: 4 },
+        { id: 'han_bang_tuyet_lien', name: 'Hàn Băng Tuyết Liên', icon: '❄️', category: 'herb', typeLabel: 'Linh Thảo Hiếm', chance: 0.48, minQty: 1, maxQty: 2, maxTier: 4 }
+      ]
+    },
+    {
+      poolId: 'mob_hac_hung',
+      entityType: 'monster',
+      svgKey: 'bear',
+      name: 'Thiết Giáp Hắc Hùng',
+      realm: 'Luyện Khí Tầng 7',
+      realmLevel: 7,
+      maxHp: 740,
+      maxMp: 210,
+      attack: 62,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 3, maxTier: 4 },
+        { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.80, minQty: 2, maxQty: 3, maxTier: 4 },
+        { id: 'vang_tinh_kim', name: 'Thái Ất Tinh Kim (Vàng)', icon: '🌕', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo Quý', chance: 0.65, minQty: 1, maxQty: 2, maxTier: 4 },
+        { id: 'xich_viem_chu_qua', name: 'Xích Viêm Chu Quả', icon: '🔥', category: 'herb', typeLabel: 'Linh Thảo Hiếm', chance: 0.50, minQty: 1, maxQty: 2, maxTier: 4 }
+      ]
+    },
+    {
+      poolId: 'mob_ma_tu',
+      entityType: 'cultivator',
+      gender: 'male',
+      svgKey: 'cultivator_male',
+      name: 'Huyết Ảnh Tán Nhân',
+      realm: 'Luyện Khí Tầng 8',
+      realmLevel: 8,
+      maxHp: 980,
+      maxMp: 260,
+      attack: 78,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'vang_tinh_kim', name: 'Thái Ất Tinh Kim (Vàng)', icon: '🌕', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo Quý', chance: 0.78, minQty: 1, maxQty: 3, maxTier: 4 },
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 3, maxTier: 4 },
+        { id: 'xich_viem_chu_qua', name: 'Xích Viêm Chu Quả', icon: '🔥', category: 'herb', typeLabel: 'Linh Thảo Hiếm', chance: 0.55, minQty: 1, maxQty: 2, maxTier: 4 }
+      ]
+    },
+    {
+      poolId: 'mob_huyet_ho',
+      entityType: 'monster',
+      svgKey: 'tiger',
+      name: 'Xích Viêm Yêu Hổ',
+      realm: 'Luyện Khí Tầng 9',
+      realmLevel: 9,
+      maxHp: 1280,
+      maxMp: 320,
+      attack: 96,
+      respawnSec: 5,
+      hiddenDrops: [
+        { id: 'vang_tinh_kim', name: 'Thái Ất Tinh Kim (Vàng)', icon: '🌕', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo Quý', chance: 0.90, minQty: 2, maxQty: 4, maxTier: 5 },
+        { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 4, maxTier: 5 },
+        { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 4, maxTier: 5 },
+        { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲', category: 'material', typeLabel: 'Nguyên liệu Pháp Bảo', chance: 0.85, minQty: 2, maxQty: 4, maxTier: 5 },
+        { id: 'cuu_chuyen_tien_chi', name: 'Cửu Chuyển Tiên Chi', icon: '👑', category: 'herb', typeLabel: 'Thần Dược Luyện Đan', chance: 0.42, minQty: 1, maxQty: 1, maxTier: 5 }
+      ]
+    }
+  ],
+
+  /**
+   * 5 CẤP ĐỘ BÍ CẢNH NGẪU NHIÊN
+   */
+  SECRET_REALM_TIERS: [
+    {
+      tier: 1,
+      rankLabel: 'Cấp 1 • Hạ Phẩm',
+      names: ['Thanh Lâm Cổ Động', 'Linh Tuyền Tiểu Cảnh', 'Bích Thảo Động Phủ'],
+      color: '#4ade80',
+      bgGradient: 'linear-gradient(135deg, #064e3b, #14532d)',
+      recommendRealm: 'Luyện Khí Tầng 1–3',
+      weight: 35,
+      guardianName: 'Mộc Linh Hộ Vệ',
+      guardianHp: 110,
+      guardianAtk: 10,
+      stoneReward: [20, 45],
+      qiMult: 1.5,
+      matQty: [1, 2],
+      goldChance: 0.25,
+      maxItemTier: 2
+    },
+    {
+      tier: 2,
+      rankLabel: 'Cấp 2 • Trung Phẩm',
+      names: ['Hàn Đàm Kiếm Trủng', 'Bích Thủy Linh Cốc', 'Uẩn Linh Thạch Động'],
+      color: '#38bdf8',
+      bgGradient: 'linear-gradient(135deg, #0c4a6e, #1e3a8a)',
+      recommendRealm: 'Luyện Khí Tầng 3–5',
+      weight: 28,
+      guardianName: 'Hàn Băng Kiếm Linh',
+      guardianHp: 260,
+      guardianAtk: 24,
+      stoneReward: [45, 90],
+      qiMult: 2.6,
+      matQty: [2, 3],
+      goldChance: 0.55,
+      maxItemTier: 3
+    },
+    {
+      tier: 3,
+      rankLabel: 'Cấp 3 • Thượng Phẩm',
+      names: ['Tử Tiêu Lôi Phủ', 'Vạn Kiếm Cổ Mộ', 'Đan Hà Bí Cảnh'],
+      color: '#c084fc',
+      bgGradient: 'linear-gradient(135deg, #4c1d95, #701a75)',
+      recommendRealm: 'Luyện Khí Tầng 5–7',
+      weight: 20,
+      guardianName: 'Tử Lôi Khôi Lỗi',
+      guardianHp: 560,
+      guardianAtk: 48,
+      stoneReward: [95, 180],
+      qiMult: 4.2,
+      matQty: [2, 4],
+      goldChance: 0.85,
+      maxItemTier: 4
+    },
+    {
+      tier: 4,
+      rankLabel: 'Cấp 4 • Cực Phẩm',
+      names: ['Thái Hư Tiên Điện', 'Cửu Diệu Tinh Cung', 'Long Mạch Cổ Quật'],
+      color: '#facc15',
+      bgGradient: 'linear-gradient(135deg, #713f12, #9a3412)',
+      recommendRealm: 'Luyện Khí Tầng 7–9',
+      weight: 12,
+      guardianName: 'Kim Giáp Thần Tướng',
+      guardianHp: 960,
+      guardianAtk: 78,
+      stoneReward: [180, 320],
+      qiMult: 6.5,
+      matQty: [3, 5],
+      goldChance: 1.0,
+      maxItemTier: 4
+    },
+    {
+      tier: 5,
+      rankLabel: 'Cấp 5 • Tiên Phẩm Thái Cổ',
+      names: ['Hồng Hoang Thần Điện', 'Vạn Cổ Đế Mộ', 'Cửu Thiên Hỗn Độn Cung'],
+      color: '#f43f5e',
+      bgGradient: 'linear-gradient(135deg, #7f1d1d, #4c0519)',
+      recommendRealm: 'Luyện Khí Viên Mãn / Trúc Cơ+',
+      weight: 5,
+      guardianName: 'Thái Cổ Huyết Ma Tượng',
+      guardianHp: 1550,
+      guardianAtk: 115,
+      stoneReward: [350, 600],
+      qiMult: 10.0,
+      matQty: [4, 7],
+      goldChance: 1.0,
+      maxItemTier: 5
+    }
+  ],
+
+  generateRandomCoord(existingSpots, realmLevel = 5) {
+    const minY = realmLevel <= 3 ? 720 : realmLevel <= 6 ? 360 : 160;
+    const maxY = realmLevel <= 3 ? 1350 : realmLevel <= 6 ? 1080 : 680;
+    let bestX = 300;
+    let bestY = 850;
+
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const candidateX = Math.floor(140 + Math.random() * (this.MAP_WIDTH - 280));
+      const candidateY = Math.floor(minY + Math.random() * (maxY - minY));
+      bestX = candidateX;
+      bestY = candidateY;
+
+      const tooClose = (existingSpots || []).some(sp => {
+        if (!sp || sp.x === undefined) return false;
+        return Math.hypot(sp.x - candidateX, sp.y - candidateY) < 135;
+      });
+      if (!tooClose) break;
+    }
+
+    return { x: bestX, y: bestY };
+  },
+
+  spawnAllRandomMobs() {
+    const spots = [];
+    const shuffledPool = [...this.MOB_POOL_DEFS].sort(() => Math.random() - 0.5);
+    const chosenDefs = shuffledPool.slice(0, this.ACTIVE_MOB_COUNT).sort((a, b) => a.realmLevel - b.realmLevel);
+
+    chosenDefs.forEach((def, idx) => {
+      const coord = this.generateRandomCoord(spots, def.realmLevel);
+      spots.push({
+        ...def,
+        id: `rand_mob_${idx}_${Date.now()}`,
+        x: coord.x,
+        y: coord.y,
+        currentHp: def.maxHp,
+        currentMp: def.maxMp,
+        isDead: false,
+        respawnRemainingMs: 0
+      });
+    });
+
+    this.mobSpots = spots;
+  },
+
+  respawnSingleMobAtRandomSpot(mob, index) {
+    const candidates = this.MOB_POOL_DEFS.filter(d => Math.abs(d.realmLevel - mob.realmLevel) <= 1);
+    const newDef = candidates[Math.floor(Math.random() * candidates.length)] || mob;
+    const otherSpots = this.mobSpots.filter((_, i) => i !== index);
+    const newCoord = this.generateRandomCoord(otherSpots, newDef.realmLevel);
+
+    Object.assign(mob, {
+      ...newDef,
+      id: mob.id,
+      x: newCoord.x,
+      y: newCoord.y,
+      currentHp: newDef.maxHp,
+      currentMp: newDef.maxMp,
+      isDead: false,
+      respawnRemainingMs: 0
+    });
+  },
+
+  rollSecretRealmTier() {
+    const totalWeight = this.SECRET_REALM_TIERS.reduce((s, t) => s + t.weight, 0);
+    let r = Math.random() * totalWeight;
+    for (const t of this.SECRET_REALM_TIERS) {
+      r -= t.weight;
+      if (r <= 0) return t;
+    }
+    return this.SECRET_REALM_TIERS[0];
+  },
+
+  getCustomEntityBadgeHTML(mob) {
+    if (mob.entityType === 'cultivator') {
+      const spritePath =
+        mob.gender === 'female'
+          ? 'assets/sprites_walk/nu/nu_di_xuong_01.png'
+          : 'assets/sprites_walk/nam/nam_di_xuong_01.png';
+      const ringColor = mob.gender === 'female' ? '#f472b6' : '#38bdf8';
+
+      return `
+        <div class="xianxia-token cultivator-token" style="--token-accent:${ringColor}">
+          <svg class="token-frame-svg" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="29" fill="rgba(18, 28, 36, 0.92)" stroke="${ringColor}" stroke-width="2" />
+            <circle cx="32" cy="32" r="25" fill="none" stroke="#e3b866" stroke-width="1" stroke-dasharray="4 3" />
+            <path d="M32 2 L36 9 L28 9 Z M32 62 L36 55 L28 55 Z M2 32 L9 36 L9 28 Z M62 32 L55 36 L55 28 Z" fill="#e3b866" />
+          </svg>
+          <img src="${spritePath}" class="token-cultivator-img" alt="${mob.name}"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
+          <svg class="token-fallback-svg" style="display:none" viewBox="0 0 64 64">
+            <path d="M32 12 L42 28 L37 50 L27 50 L22 28 Z" fill="${ringColor}" opacity="0.85" />
+            <circle cx="32" cy="20" r="7" fill="#f7e8c4" />
+          </svg>
+          <span class="token-type-pill">⚔️ Tu Sĩ</span>
+        </div>
+      `;
+    }
+
+    const svgMap = {
+      wolf: {
+        accent: '#4ade80',
+        art: `
+          <polygon points="32,11 47,22 44,44 32,53 20,44 17,22" fill="#132a22" stroke="#4ade80" stroke-width="1.6"/>
+          <path d="M18,14 L26,25 L20,30 Z M46,14 L38,25 L44,30 Z" fill="#86efac"/>
+          <path d="M22,24 L32,19 L42,24 L39,42 L32,49 L25,42 Z" fill="#1e3a2f" stroke="#bbf7d0" stroke-width="1.2"/>
+          <polygon points="25,30 30,32 26,35" fill="#fde047"/>
+          <polygon points="39,30 34,32 38,35" fill="#fde047"/>
+          <polygon points="30,42 34,42 32,46" fill="#f87171"/>
+        `
+      },
+      snake: {
+        accent: '#a855f7',
+        art: `
+          <circle cx="32" cy="32" r="21" fill="#231433" stroke="#c084fc" stroke-width="1.5"/>
+          <path d="M22,44 C16,34 24,24 32,26 C40,28 44,18 32,14 C25,14 23,20 28,22" fill="none" stroke="#c084fc" stroke-width="4.2" stroke-linecap="round"/>
+          <polygon points="32,11 39,17 32,23 25,17" fill="#a855f7" stroke="#f3e8ff" stroke-width="1"/>
+          <circle cx="29" cy="16" r="1.6" fill="#fde047"/>
+          <circle cx="35" cy="16" r="1.6" fill="#fde047"/>
+          <path d="M32,23 L30,28 M32,23 L34,28" stroke="#f43f5e" stroke-width="1.3"/>
+        `
+      },
+      golem: {
+        accent: '#f59e0b',
+        art: `
+          <polygon points="32,10 49,20 46,45 32,53 18,45 15,20" fill="#3b2a1a" stroke="#fbbf24" stroke-width="1.8"/>
+          <polygon points="23,20 41,20 45,35 32,47 19,35" fill="#574128" stroke="#fde68a" stroke-width="1.2"/>
+          <rect x="23" y="26" width="6" height="4" fill="#38bdf8"/>
+          <rect x="35" y="26" width="6" height="4" fill="#38bdf8"/>
+          <polygon points="32,33 36,38 32,43 28,38" fill="#fde047"/>
+        `
+      },
+      bear: {
+        accent: '#fb7185',
+        art: `
+          <circle cx="21" cy="18" r="6" fill="#2b161b" stroke="#fb7185" stroke-width="1.5"/>
+          <circle cx="43" cy="18" r="6" fill="#2b161b" stroke="#fb7185" stroke-width="1.5"/>
+          <circle cx="32" cy="33" r="17" fill="#261317" stroke="#fda4af" stroke-width="1.8"/>
+          <polygon points="24,28 29,30 25,33" fill="#f43f5e"/>
+          <polygon points="40,28 35,30 39,33" fill="#f43f5e"/>
+          <ellipse cx="32" cy="39" rx="7" ry="5" fill="#4c1d24" stroke="#fecdd3" stroke-width="1"/>
+          <path d="M28,42 L30,45 M36,42 L34,45" stroke="#fff" stroke-width="1.6"/>
+        `
+      },
+      tiger: {
+        accent: '#ef4444',
+        art: `
+          <polygon points="32,9 51,20 48,44 32,55 16,44 13,20" fill="#3b1111" stroke="#fde047" stroke-width="2"/>
+          <path d="M27,16 L37,16 M32,13 L32,22 M28,20 L36,20" stroke="#fde047" stroke-width="2"/>
+          <polygon points="23,28 29,30 25,34" fill="#fef08a"/>
+          <polygon points="41,28 35,30 39,34" fill="#fef08a"/>
+          <path d="M25,40 L28,46 M39,40 L36,46" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+        `
+      }
+    };
+
+    const cfg = svgMap[mob.svgKey] || svgMap.wolf;
+    return `
+      <div class="xianxia-token monster-token" style="--token-accent:${cfg.accent}">
+        <svg class="token-frame-svg" viewBox="0 0 64 64">
+          <polygon points="32,2 53,11 62,32 53,53 32,62 11,53 2,32 11,11"
+                   fill="rgba(22, 16, 12, 0.94)" stroke="#e3b866" stroke-width="2.2"/>
+          <circle cx="32" cy="32" r="24" fill="none" stroke="${cfg.accent}" stroke-width="1.2" stroke-dasharray="3 2"/>
+          ${cfg.art}
+        </svg>
+        <span class="token-type-pill">🐾 Yêu Thú</span>
+      </div>
+    `;
+  },
+
+  // ===========================================================================
+  // PHẦN 2: KHỞI TẠO BẢN ĐỒ, THANH CÔNG CỤ TÓM GỌN 1 DÒNG & PHÓNG TO KHUNG BẢN ĐỒ
+  // ===========================================================================
 
   init() {
     this.overlayEl = document.getElementById('expedition-modal-overlay');
@@ -79,1853 +500,1095 @@ window.TuTien.Expedition = {
         }
       });
     }
-    this.preloadTileTextures();
-    this.preloadWalkSprites();
-    this.generateSecretRealm(true);
-  },
 
-  /**
-   * Nạp sẵn 32 frame di chuyển 4 hướng của Nam & Nữ để chuyển frame mượt mà không nhấp nháy
-   */
-  preloadWalkSprites() {
-    if (typeof Image === 'undefined') return;
-    const genders = ['nam', 'nu'];
-    const dirs = ['xuong', 'len', 'trai', 'phai'];
-    const frames = ['01', '02', '03', '04'];
-
-    genders.forEach(g => {
-      dirs.forEach(d => {
-        frames.forEach(f => {
-          const path = `assets/sprites_walk/${g}/${g}_di_${d}_${f}.png`;
-          const img = new Image();
-          img.src = path;
-          this.walkSpriteCache[path] = img;
-        });
-      });
-    });
-  },
-
-  /**
-   * Nạp bộ Texture Pixel-Art từ `window.TuTien.MAP_TILES_DATA` (và fallback `assets/tiles/*.png`)
-   */
-  preloadTileTextures() {
-    const dataMap = window.TuTien.MAP_TILES_DATA || {};
-    const keys = [
-      'grass',
-      'cobble',
-      'stairs',
-      'cliff_left',
-      'cliff_mid',
-      'cliff_corner',
-      'cliff_pass',
-      'cliff_ridge',
-      'tree',
-      'grass_ice',
-      'tree_ice',
-      'grass_abyss',
-      'tree_abyss',
-      'grass_lava',
-      'tree_peach',
-      'water_tile'
-    ];
-
-    let loadedCount = 0;
-    keys.forEach(k => {
-      if (typeof Image !== 'undefined') {
-        const img = new Image();
-        img.onload = () => {
-          loadedCount += 1;
-          if (loadedCount >= keys.length) {
-            this.tilesLoaded = true;
-            if (this.isOpen && this.terrainCanvasEl) {
-              this.drawProceduralTerrainCanvas();
-            }
-          }
-        };
-        img.src = dataMap[k] || `assets/tiles/${k}.png`;
-        this.tileImages[k] = img;
-      }
-    });
+    this.spawnAllRandomMobs();
+    this.nextSecretSpawnMs = 7000;
   },
 
   openModal() {
     this.isOpen = true;
+    this.statsDropdownOpen = false;
     if (!this.overlayEl) {
       this.overlayEl = document.getElementById('expedition-modal-overlay');
     }
     if (this.overlayEl) {
       this.overlayEl.classList.remove('hidden');
     }
-    if (!this.nodes || this.nodes.length === 0) {
-      this.generateSecretRealm(true);
+
+    const pStats = this.getPlayerStats();
+    if (this.playerCurrentHp === null || this.playerCurrentHp <= 0) {
+      this.playerCurrentHp = pStats.maxHp;
+      this.playerCurrentMp = pStats.maxMp;
+    } else {
+      this.playerCurrentHp = Math.min(pStats.maxHp, this.playerCurrentHp);
+      this.playerCurrentMp = Math.min(pStats.maxMp, this.playerCurrentMp);
     }
+
     this.renderPanel();
+
     setTimeout(() => {
-      this.drawProceduralTerrainCanvas();
-      this.initFogCanvas();
-      this.updateCameraAndPlayerDOM();
-      this.updateFogVisibilityForNodes();
-      this.renderMinimap();
-    }, 25);
+      if (this.mapScrollEl) {
+        this.mapScrollEl.scrollTop = Math.max(0, this.MAP_HEIGHT - this.mapScrollEl.clientHeight - 100);
+        this.mapScrollEl.scrollLeft = Math.max(0, (this.MAP_WIDTH - this.mapScrollEl.clientWidth) / 2);
+      }
+    }, 30);
   },
 
   closeModal() {
     this.isOpen = false;
-    this.isMoving = false;
-    this.pendingNodeId = null;
-    if (this.combatExitTimeout) {
-      clearTimeout(this.combatExitTimeout);
-      this.combatExitTimeout = null;
-    }
-    if (this.inCombat) {
-      this.inCombat = false;
-      this.autoBattle = false;
-      this.combatState = null;
-      this.activeView = 'map';
-    }
-    if (window.TuTien.Audio) {
-      window.TuTien.Audio.switchToTrainingBgm();
-    }
+    this.selectedMobId = null;
+    this.combatRunning = false;
     if (this.overlayEl) {
       this.overlayEl.classList.add('hidden');
     }
   },
 
-  seededRandom(seedObj) {
-    seedObj.v = (seedObj.v * 1664525 + 1013904223) % 4294967296;
-    return seedObj.v / 4294967296;
-  },
-
-  /**
-   * Vẽ Bản Đồ Pixel-Art 2000×2000 từ bộ Texture người chơi tải lên + vẽ bổ sung các Biome còn thiếu bằng code
-   */
-  drawProceduralTerrainCanvas() {
-    if (!this.terrainCanvasEl) return;
-    const ctx = this.terrainCanvasEl.getContext('2d');
-    if (!ctx) return;
-
-    const W = this.WORLD_W;
-    const H = this.WORLD_H;
-    const seed = { v: this.mapSeed || 1234567 };
-    const rand = () => this.seededRandom(seed);
-
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, W, H);
-
-    const tGrass = this.tileImages.grass;
-    const tGrassIce = this.tileImages.grass_ice || tGrass;
-    const tGrassAbyss = this.tileImages.grass_abyss || tGrass;
-    const tGrassLava = this.tileImages.grass_lava || tGrass;
-    const tWater = this.tileImages.water_tile || tGrass;
-    const tCobble = this.tileImages.cobble;
-    const tStairs = this.tileImages.stairs;
-    const tCliffLeft = this.tileImages.cliff_left;
-    const tCliffMid = this.tileImages.cliff_mid;
-    const tCliffCorner = this.tileImages.cliff_corner;
-    const tCliffPass = this.tileImages.cliff_pass;
-    const tCliffRidge = this.tileImages.cliff_ridge;
-    const tTree = this.tileImages.tree;
-    const tTreeIce = this.tileImages.tree_ice || tTree;
-    const tTreeAbyss = this.tileImages.tree_abyss || tTree;
-    const tTreePeach = this.tileImages.tree_peach || tTree;
-
-    const canDrawImg = img => img && img.complete && img.naturalWidth > 0;
-
-    // 1. LỚP NỀN TILE 64×64 TRẢI KHẮP 2000×2000 THEO 5 QUẦN XÃ ĐỊA HÌNH (BIOMES)
-    const tileS = 64;
-    for (let y = 0; y < H; y += tileS) {
-      for (let x = 0; x < W; x += tileS) {
-        const cx = x + 32;
-        const cy = y + 32;
-        const jitter = (rand() - 0.5) * 140;
-
-        let chosenTile = tGrass;
-        let fallbackColor = '#98c964';
-
-        if (Math.hypot(cx - 320, cy - 320) + jitter < 620) {
-          chosenTile = tGrassAbyss;
-          fallbackColor = '#4c286e';
-        } else if (Math.hypot(cx - 1680, cy - 320) + jitter < 620) {
-          chosenTile = tGrassIce;
-          fallbackColor = '#9bd4f0';
-        } else if (Math.hypot(cx - 320, cy - 1680) + jitter < 620) {
-          chosenTile = tGrassLava;
-          fallbackColor = '#7c3424';
-        } else if (Math.hypot(cx - 1680, cy - 1680) + jitter < 620) {
-          const distIsland1 = Math.hypot(cx - 1560, cy - 1540);
-          const distIsland2 = Math.hypot(cx - 1780, cy - 1740);
-          if (distIsland1 < 180 || distIsland2 < 160) {
-            chosenTile = tGrass;
-            fallbackColor = '#98c964';
-          } else {
-            chosenTile = tWater;
-            fallbackColor = '#2890b8';
-          }
-        }
-
-        if (canDrawImg(chosenTile)) {
-          ctx.drawImage(chosenTile, x, y, tileS, tileS);
-        } else {
-          ctx.fillStyle = fallbackColor;
-          ctx.fillRect(x, y, tileS, tileS);
-        }
-      }
-    }
-
-    // 2. CON ĐƯỜNG ĐÁ CỔ & QUẢNG TRƯỜNG TRUNG TÂM BẰNG TEXTURE COBBLE
-    const drawCobbleTile = (gx, gy) => {
-      const tx = Math.floor(gx / tileS) * tileS;
-      const ty = Math.floor(gy / tileS) * tileS;
-      if (canDrawImg(tCobble)) {
-        ctx.drawImage(tCobble, tx, ty, tileS, tileS);
-      } else {
-        ctx.fillStyle = '#9ca3af';
-        ctx.fillRect(tx, ty, tileS, tileS);
-      }
-    };
-
-    for (let py = 896; py <= 1152; py += tileS) {
-      for (let px = 896; px <= 1088; px += tileS) {
-        drawCobbleTile(px, py);
-      }
-    }
-
-    const roadTargets = [
-      { x: 320, y: 320 },
-      { x: 1680, y: 320 },
-      { x: 320, y: 1680 },
-      { x: 1620, y: 1620 },
-      { x: 1000, y: 260 },
-      { x: 1000, y: 1760 }
-    ];
-
-    roadTargets.forEach(rt => {
-      const steps = 42;
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        const rx = 1000 + (rt.x - 1000) * t + Math.sin(t * Math.PI * 3) * 36;
-        const ry = 1024 + (rt.y - 1024) * t + Math.cos(t * Math.PI * 3) * 36;
-        drawCobbleTile(rx, ry);
-      }
-    });
-
-    // 3. VÁCH ĐÁ BẬC THANG & ĐÈO ĐÁ BẰNG 6 TEXTURE CLIFF + STAIRS
-    const drawPlateau = (px, py, midCols = 3, withStairs = true) => {
-      let curX = px;
-      if (canDrawImg(tCliffLeft)) {
-        ctx.drawImage(tCliffLeft, curX, py, 102, 96);
-      }
-      curX += 96;
-
-      const stairCol = Math.floor(midCols / 2);
-      for (let c = 0; c < midCols; c++) {
-        if (withStairs && c === stairCol && canDrawImg(tStairs)) {
-          ctx.drawImage(tStairs, curX, py, 96, 95);
-        } else if (canDrawImg(tCliffMid)) {
-          ctx.drawImage(tCliffMid, curX, py, 96, 96);
-        }
-        curX += 92;
-      }
-
-      if (canDrawImg(tCliffCorner)) {
-        ctx.drawImage(tCliffCorner, curX, py, 102, 96);
-      }
-    };
-
-    const plateaus = [
-      { x: 760, y: 690, cols: 4, stairs: true },
-      { x: 1180, y: 820, cols: 3, stairs: true },
-      { x: 540, y: 1120, cols: 3, stairs: true },
-      { x: 1320, y: 1200, cols: 3, stairs: true },
-      { x: 220, y: 520, cols: 3, stairs: true },
-      { x: 1420, y: 460, cols: 3, stairs: true },
-      { x: 260, y: 1380, cols: 3, stairs: true },
-      { x: 860, y: 1420, cols: 4, stairs: true }
-    ];
-    plateaus.forEach(p => drawPlateau(p.x, p.y, p.cols, p.stairs));
-
-    const passes = [
-      { x: 640, y: 440 },
-      { x: 1280, y: 600 },
-      { x: 620, y: 1480 },
-      { x: 1360, y: 1480 },
-      { x: 960, y: 420 }
-    ];
-    passes.forEach(ps => {
-      if (canDrawImg(tCliffPass)) {
-        ctx.drawImage(tCliffPass, ps.x, ps.y, 128, 96);
-      }
-    });
-
-    const ridges = [
-      { x: 460, y: 220 },
-      { x: 1150, y: 200 },
-      { x: 1520, y: 740 },
-      { x: 180, y: 920 },
-      { x: 480, y: 1760 },
-      { x: 1220, y: 1740 }
-    ];
-    ridges.forEach(rg => {
-      if (canDrawImg(tCliffRidge)) {
-        ctx.drawImage(tCliffRidge, rg.x, rg.y, 171, 77);
-      }
-    });
-
-    // 4. VẼ BỔ SUNG ĐẶC TRƯNG ĐỊA HÌNH BẰNG CODE CHO CÁC BIOME
-    for (let i = 0; i < 18; i++) {
-      const lx = 120 + rand() * 520;
-      const ly = 1380 + rand() * 500;
-      ctx.save();
-      ctx.strokeStyle = '#ff5722';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(lx, ly);
-      ctx.lineTo(lx + (rand() - 0.5) * 90, ly + (rand() - 0.5) * 70);
-      ctx.lineTo(lx + (rand() - 0.5) * 140, ly + (rand() - 0.5) * 110);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#fde047';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    for (let i = 0; i < 20; i++) {
-      const ix = 1360 + rand() * 540;
-      const iy = 100 + rand() * 500;
-      const h = 16 + rand() * 18;
-      ctx.save();
-      ctx.fillStyle = '#e0f2fe';
-      ctx.strokeStyle = '#0284c7';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(ix, iy - h);
-      ctx.lineTo(ix + h * 0.45, iy);
-      ctx.lineTo(ix, iy + h * 0.25);
-      ctx.lineTo(ix - h * 0.45, iy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    for (let i = 0; i < 16; i++) {
-      const ax = 100 + rand() * 520;
-      const ay = 100 + rand() * 520;
-      ctx.save();
-      ctx.fillStyle = 'rgba(192, 132, 252, 0.28)';
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(ax, ay, 10 + rand() * 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // 5. TRỒNG RỪNG CÂY PIXEL-ART THEO TỪNG BIOME
-    const totalTrees = 185;
-    for (let i = 0; i < totalTrees; i++) {
-      const tx = 50 + rand() * (W - 140);
-      const ty = 50 + rand() * (H - 140);
-
-      if (Math.hypot(tx - 1000, ty - 1020) < 165) continue;
-
-      let treeImg = tTree;
-      if (Math.hypot(tx - 320, ty - 320) < 580) {
-        treeImg = tTreeAbyss;
-      } else if (Math.hypot(tx - 1680, ty - 320) < 580) {
-        treeImg = tTreeIce;
-      } else if (Math.hypot(tx - 320, ty - 1680) < 560) {
-        if (rand() < 0.72) continue;
-        treeImg = tTreeAbyss;
-      } else if (Math.hypot(tx - 1680, ty - 1680) < 580) {
-        const onIsland =
-          Math.hypot(tx - 1560, ty - 1540) < 165 || Math.hypot(tx - 1780, ty - 1740) < 145;
-        if (!onIsland) continue;
-        treeImg = tTreePeach;
-      } else if (rand() < 0.22) {
-        treeImg = tTreePeach;
-      }
-
-      if (canDrawImg(treeImg)) {
-        const scale = 0.95 + rand() * 0.35;
-        const dw = Math.round(62 * scale);
-        const dh = Math.round(57 * scale);
-        ctx.drawImage(treeImg, Math.round(tx - dw / 2), Math.round(ty - dh / 2), dw, dh);
-      }
-    }
-
-    // 6. ĐÀI ĐÁ CỔ TỌA THIỀN GIỮA THÁI THANH LINH CỐC (1000, 1060)
-    ctx.save();
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.78)';
-    ctx.fillStyle = 'rgba(15, 35, 42, 0.45)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(1000, 1060, 74, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(45, 212, 191, 0.65)';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(1000, 1060, 52, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  },
-
-  /**
-   * Khởi tạo hoặc làm mới Bí Cảnh 2000×2000 (5 phút / lần)
-   */
-  generateSecretRealm(resetPlayerPos = false) {
-    const Utils = window.TuTien.Utils;
-    const State = window.TuTien.State;
-    const Inv = window.TuTien.Inventory;
-    const pRealmIdx = (State && State.data && State.data.realmIndex) || 0;
-    const pStats = window.TuTien.Character
+  getPlayerStats() {
+    const cStats = window.TuTien.Character
       ? window.TuTien.Character.getCombatStats()
       : { maxHp: 100, maxMp: 100, speed: 10, attack: 10 };
-
-    this.mapSeed = Date.now() + Math.floor(Math.random() * 100000);
-    this.refreshRemainingMs = this.REFRESH_INTERVAL_MS;
-
-    if (resetPlayerPos) {
-      this.playerX = 1000;
-      this.playerY = 1060;
-      this.targetX = 1000;
-      this.targetY = 1060;
-      this.isMoving = false;
-      this.exploredPoints = [{ x: 1000, y: 1060, r: this.REVEAL_RADIUS + 40 }];
-    } else {
-      this.exploredPoints = [{ x: this.playerX, y: this.playerY, r: this.REVEAL_RADIUS + 30 }];
-      if (this.fogCanvasEl) {
-        this.initFogCanvas();
-      }
-    }
-
-    const usedCoords = [{ x: this.playerX, y: this.playerY }];
-    const pickCoord = (minX, maxX, minY, maxY, minDist = 135) => {
-      for (let attempt = 0; attempt < 40; attempt++) {
-        const cx = Utils.randomInt(minX, maxX);
-        const cy = Utils.randomInt(minY, maxY);
-        const tooClose = usedCoords.some(p => Math.hypot(p.x - cx, p.y - cy) < minDist);
-        if (!tooClose) {
-          usedCoords.push({ x: cx, y: cy });
-          return { x: cx, y: cy };
-        }
-      }
-      const fallback = { x: Utils.randomInt(minX, maxX), y: Utils.randomInt(minY, maxY) };
-      usedCoords.push(fallback);
-      return fallback;
-    };
-
-    this.nodes = [];
-    let nextId = 1;
-
-    // 1. 18 YÊU THÚ & TÁN TU TRÊN KHẮP 5 VÙNG ĐỊA HÌNH 2000×2000
-    const enemyTemplates = [
-      { type: 'monster', name: 'Thanh Vân Yêu Lộc', title: 'Linh Thú Đồng Cỏ', icon: '🦌', offset: -1, scale: 0.72, spd: 0.85, zone: [680, 1320, 680, 1350] },
-      { type: 'monster', name: 'Thiết Giáp Sơn Trư', title: 'Hung Thú Chân Núi', icon: '🐗', offset: 0, scale: 0.90, spd: 0.80, zone: [640, 1360, 640, 1380] },
-      { type: 'cultivator', gender: 'male', name: 'Vân Du Tán Tu', title: 'Chính Đạo Kiếm Khách', icon: '🗡️', offset: 0, scale: 1.0, spd: 1.02, zone: [600, 1400, 580, 1420] },
-      { type: 'cultivator', gender: 'female', name: 'Bích Thủy Tiên Tử', title: 'Tán Tu Ngự Kiếm', icon: '🧚‍♀️', offset: 0, scale: 1.05, spd: 1.12, zone: [650, 1420, 600, 1400] },
-      { type: 'monster', name: 'Bích Nhãn Yêu Lang', title: 'Yêu Thú Rừng Sâu', icon: '🐺', offset: 0, scale: 0.95, spd: 1.08, zone: [450, 1550, 450, 1550] },
-      { type: 'monster', name: 'Hàn Băng Tuyết Báo', title: 'Yêu Thú Tuyết Đỉnh', icon: '🐆', offset: 1, scale: 1.25, spd: 1.20, zone: [1280, 1860, 140, 680] },
-      { type: 'monster', name: 'Băng Tinh Huyền Quy', title: 'Linh Thú Hàn Đàm', icon: '🐢', offset: 1, scale: 1.35, spd: 0.85, zone: [1300, 1880, 160, 720] },
-      { type: 'cultivator', gender: 'female', name: 'Hàn Cung Kiếm Nữ', title: 'Tán Tu Băng Tuyết', icon: '❄️', offset: 2, scale: 1.45, spd: 1.22, zone: [1320, 1850, 150, 650] },
-      { type: 'monster', name: 'Xích Viêm Hỏa Chu', title: 'Độc Trùng Dung Nham', icon: '🕷️', offset: 1, scale: 1.30, spd: 1.12, zone: [140, 720, 1280, 1860] },
-      { type: 'monster', name: 'Dung Nham Cự Nhân', title: 'Tinh Linh Hỏa Sơn', icon: '👹', offset: 2, scale: 1.55, spd: 0.92, zone: [160, 740, 1300, 1880] },
-      { type: 'monster', name: 'Hỏa Diệm Kỳ Lân', title: 'Yêu Vương Hỏa Sơn (Vượt Cấp)', icon: '🦁', offset: 4, scale: 2.15, spd: 1.28, isOverlevel: true, zone: [150, 580, 1420, 1860] },
-      { type: 'monster', name: 'U Minh Huyết Dực', title: 'Hung Thú Ma Vực', icon: '🦇', offset: 1, scale: 1.28, spd: 1.20, zone: [140, 720, 140, 700] },
-      { type: 'cultivator', gender: 'male', name: 'Huyết Ảnh Ma Tu', title: 'Ma Đạo Tán Tu', icon: '🩸', offset: 2, scale: 1.50, spd: 1.18, zone: [160, 700, 160, 720] },
-      { type: 'monster', name: 'Thái Cổ Minh Giao', title: 'Ma Long U Minh (Vượt Cấp)', icon: '🐉', offset: 4, scale: 2.35, spd: 1.30, isOverlevel: true, zone: [140, 520, 140, 520] },
-      { type: 'monster', name: 'Bích Hải Giao Nhân', title: 'Yêu Tộc Linh Đảo', icon: '🧜', offset: 1, scale: 1.32, spd: 1.10, zone: [1280, 1860, 1280, 1860] },
-      { type: 'monster', name: 'Kim Giáp Cự Giải', title: 'Hải Thú Bích Hải', icon: '🦀', offset: 2, scale: 1.50, spd: 0.95, zone: [1300, 1880, 1300, 1880] },
-      { type: 'cultivator', gender: 'male', name: 'Đông Hải Kiếm Tôn', title: 'Cao Thủ Vượt Cấp', icon: '⚡', offset: 3, scale: 1.95, spd: 1.25, isOverlevel: true, zone: [1420, 1880, 1420, 1880] },
-      { type: 'monster', name: 'Cửu Thiên Lôi Bằng', title: 'Thần Thú Chí Tôn (Vượt Cấp)', icon: '🦅', offset: 5, scale: 2.75, spd: 1.40, isOverlevel: true, zone: [820, 1180, 220, 520] }
-    ];
-
-    enemyTemplates.forEach(tpl => {
-      const eRealmIdx = Utils.clamp(pRealmIdx + tpl.offset, 0, window.TuTien.REALMS.length - 1);
-      const eRealmObj = window.TuTien.REALMS[eRealmIdx];
-      const pos = pickCoord(tpl.zone[0], tpl.zone[1], tpl.zone[2], tpl.zone[3], 135);
-      const isOverlevel = !!tpl.isOverlevel || eRealmIdx >= pRealmIdx + 3;
-
-      this.nodes.push({
-        id: `node_${nextId++}`,
-        nodeCategory: 'enemy',
-        type: tpl.type,
-        gender: tpl.gender || 'male',
-        name: tpl.name,
-        title: tpl.title,
-        icon: tpl.icon,
-        x: pos.x,
-        y: pos.y,
-        realmIndex: eRealmIdx,
-        realmName: eRealmObj.fullName,
-        isOverlevel,
-        maxHp: Math.max(60, Math.round(pStats.maxHp * tpl.scale)),
-        maxMp: Math.max(50, Math.round(pStats.maxMp * tpl.scale)),
-        speed: Math.max(6, Math.round(pStats.speed * tpl.spd)),
-        attack: Math.max(8, Math.round(pStats.attack * tpl.scale)),
-        statScale: tpl.scale
-      });
-    });
-
-    // 2. 14 ĐIỂM MỌC LINH THẢO HIẾM TRÊN BẢN ĐỒ
-    const herbSpawnDefs = [
-      { herbId: 'tu_linh_thao', minTier: 1, maxTier: 3, zone: [620, 1380, 620, 1380] },
-      { herbId: 'pha_chuong_qua', minTier: 1, maxTier: 3, zone: [600, 1400, 600, 1400] },
-      { herbId: 'huyet_ngoc_sam', minTier: 2, maxTier: 4, zone: [520, 1480, 520, 1480] },
-      { herbId: 'loi_tam_thao', minTier: 2, maxTier: 4, zone: [500, 1500, 500, 1500] },
-      { herbId: 'han_bang_tuyet_lien', minTier: 2, maxTier: 5, zone: [1280, 1880, 140, 700] },
-      { herbId: 'han_bang_tuyet_lien', minTier: 3, maxTier: 5, zone: [1360, 1880, 140, 640] },
-      { herbId: 'xich_viem_chu_qua', minTier: 2, maxTier: 5, zone: [140, 720, 1280, 1880] },
-      { herbId: 'xich_viem_chu_qua', minTier: 3, maxTier: 5, zone: [140, 640, 1360, 1880] },
-      { herbId: 'u_minh_bi_ngan', minTier: 2, maxTier: 5, zone: [140, 720, 140, 720] },
-      { herbId: 'u_minh_bi_ngan', minTier: 3, maxTier: 5, zone: [140, 620, 140, 620] },
-      { herbId: 'tinh_than_long_thao', minTier: 2, maxTier: 5, zone: [1280, 1880, 1280, 1880] },
-      { herbId: 'tinh_than_long_thao', minTier: 3, maxTier: 5, zone: [1360, 1880, 1360, 1880] },
-      { herbId: 'thai_at_duong_hon_moc', minTier: 3, maxTier: 5, zone: [400, 1600, 260, 1740] },
-      { herbId: 'cuu_chuyen_tien_chi', minTier: 4, maxTier: 5, zone: [180, 1820, 180, 620] }
-    ];
-
-    herbSpawnDefs.forEach(hs => {
-      const herbDef = window.TuTien.HERB_TYPES.find(h => h.id === hs.herbId);
-      if (!herbDef) return;
-      const pos = pickCoord(hs.zone[0], hs.zone[1], hs.zone[2], hs.zone[3], 120);
-      const qTier = Utils.randomInt(hs.minTier, hs.maxTier);
-      const qObj = Inv ? Inv.getQualityByTier(qTier) : window.TuTien.ITEM_QUALITIES[0];
-      const qty = herbDef.id === 'cuu_chuyen_tien_chi' ? 1 : Utils.randomInt(1, 3);
-
-      this.nodes.push({
-        id: `node_${nextId++}`,
-        nodeCategory: 'herb',
-        herbId: herbDef.id,
-        name: herbDef.name,
-        icon: herbDef.icon,
-        desc: herbDef.desc,
-        qty,
-        qualityTier: qObj.tier,
-        qualityName: qObj.name,
-        qualityColor: qObj.color,
-        x: pos.x,
-        y: pos.y
-      });
-    });
-
-    // 3. 10 MỎ QUẶNG LINH THẠCH
-    const oreSpawns = [
-      { grade: 'low', name: 'Quặng Linh Thạch Hạ Phẩm', icon: '💎', color: '#38bdf8', minAmt: 18, maxAmt: 45, zone: [550, 1450, 550, 1450] },
-      { grade: 'low', name: 'Quặng Linh Thạch Hạ Phẩm', icon: '💎', color: '#38bdf8', minAmt: 20, maxAmt: 55, zone: [500, 1500, 500, 1500] },
-      { grade: 'low', name: 'Quặng Linh Thạch Hạ Phẩm', icon: '💎', color: '#38bdf8', minAmt: 25, maxAmt: 65, zone: [400, 1600, 400, 1600] },
-      { grade: 'low', name: 'Quặng Linh Thạch Hạ Phẩm', icon: '💎', color: '#38bdf8', minAmt: 30, maxAmt: 75, zone: [300, 1700, 300, 1700] },
-      { grade: 'mid', name: 'Mạch Linh Thạch Trung Phẩm', icon: '💠', color: '#c084fc', minAmt: 1, maxAmt: 3, zone: [200, 800, 200, 800] },
-      { grade: 'mid', name: 'Mạch Linh Thạch Trung Phẩm', icon: '💠', color: '#c084fc', minAmt: 1, maxAmt: 3, zone: [1200, 1800, 200, 800] },
-      { grade: 'mid', name: 'Mạch Linh Thạch Trung Phẩm', icon: '💠', color: '#c084fc', minAmt: 1, maxAmt: 4, zone: [200, 800, 1200, 1800] },
-      { grade: 'mid', name: 'Mạch Linh Thạch Trung Phẩm', icon: '💠', color: '#c084fc', minAmt: 1, maxAmt: 4, zone: [1200, 1800, 1200, 1800] },
-      { grade: 'high', name: 'Long Mạch Linh Thạch Thượng Phẩm', icon: '🌟', color: '#fbbf24', minAmt: 1, maxAmt: 1, zone: [150, 520, 150, 520] },
-      { grade: 'high', name: 'Long Mạch Linh Thạch Thượng Phẩm', icon: '🌟', color: '#fbbf24', minAmt: 1, maxAmt: 2, zone: [1480, 1860, 1480, 1860] }
-    ];
-
-    oreSpawns.forEach(os => {
-      const pos = pickCoord(os.zone[0], os.zone[1], os.zone[2], os.zone[3], 125);
-      this.nodes.push({
-        id: `node_${nextId++}`,
-        nodeCategory: 'ore',
-        grade: os.grade,
-        name: os.name,
-        icon: os.icon,
-        color: os.color,
-        amount: Utils.randomInt(os.minAmt, os.maxAmt),
-        x: pos.x,
-        y: pos.y
-      });
-    });
-
-    const merchantPos1 = pickCoord(760, 1240, 740, 1240, 130);
-    const merchantPos2 = pickCoord(280, 1720, 280, 1720, 150);
-
-    [merchantPos1, merchantPos2].forEach((pos, idx) => {
-      this.nodes.push({
-        id: `node_merchant_${idx + 1}`,
-        nodeCategory: 'merchant',
-        name: idx === 0 ? 'Vân Du Tiên Thương' : 'Kỳ Trân Các Lão Nhân',
-        title: '🏮 Thương Nhân Bí Cảnh',
-        icon: '🏮',
-        x: pos.x,
-        y: pos.y
-      });
-    });
-
-    this.generateMerchantStock();
-  },
-
-  generateMerchantStock() {
-    const Utils = window.TuTien.Utils;
-    const Upgrades = window.TuTien.Upgrades;
-    const Fields = window.TuTien.Fields;
-    const Inv = window.TuTien.Inventory;
-    const stock = [];
-
-    const lockedTechs = window.TuTien.UPGRADES.filter(u => u.requiresUnlock && !Upgrades.isUnlocked(u));
-    if (lockedTechs.length > 0) {
-      const pickT = lockedTechs[Math.floor(Math.random() * lockedTechs.length)];
-      const dispName = Upgrades.getDisplayName(pickT);
-      stock.push({
-        stockId: 'm_tech_unlock',
-        type: 'unlock_tech',
-        targetId: pickT.id,
-        icon: '📘',
-        name: `Bí Tịch: ${dispName}`,
-        qualityName: 'Bí Truyền',
-        qualityColor: '#fbbf24',
-        desc: `Mở khóa vĩnh viễn 【${dispName}】 (+Tầng 1)`,
-        costLow: 120,
-        sold: false
-      });
-    } else {
-      const pickT = window.TuTien.UPGRADES[Math.floor(Math.random() * window.TuTien.UPGRADES.length)];
-      const dispName = Upgrades.getDisplayName(pickT);
-      stock.push({
-        stockId: 'm_tech_quality',
-        type: 'upgrade_tech_quality',
-        targetId: pickT.id,
-        icon: '📖',
-        name: `Tâm Đắc: ${dispName}`,
-        qualityName: 'Thăng Phẩm',
-        qualityColor: '#c084fc',
-        desc: `Thăng +1 bậc Phẩm Chất cho 【${dispName}】`,
-        costLow: 180,
-        sold: false
-      });
-    }
-
-    const lockedPills = window.TuTien.PILL_RECIPES.filter(
-      r => r.requiresRecipeUnlock && !Fields.isPillRecipeUnlocked(r)
-    );
-    if (lockedPills.length > 0) {
-      const pickP = lockedPills[Math.floor(Math.random() * lockedPills.length)];
-      stock.push({
-        stockId: 'm_pill_recipe',
-        type: 'unlock_pill_recipe',
-        targetId: pickP.id,
-        icon: '📜',
-        name: `Đan Phương: ${pickP.name}`,
-        qualityName: 'Đan Phương Cổ',
-        qualityColor: '#38bdf8',
-        desc: `Mở khóa luyện chế 【${pickP.name}】`,
-        costLow: 85,
-        sold: false
-      });
-    }
-
-    const lockedTals = window.TuTien.TALISMAN_RECIPES.filter(
-      t => t.requiresRecipeUnlock && !Fields.isTalismanRecipeUnlocked(t)
-    );
-    if (lockedTals.length > 0) {
-      const pickTal = lockedTals[Math.floor(Math.random() * lockedTals.length)];
-      stock.push({
-        stockId: 'm_tal_recipe',
-        type: 'unlock_talisman_recipe',
-        targetId: pickTal.id,
-        icon: '🧧',
-        name: `Phù Phương: ${pickTal.name}`,
-        qualityName: 'Phù Phương Cổ',
-        qualityColor: '#4ade80',
-        desc: `Mở khóa họa phù 【${pickTal.name}】`,
-        costLow: 80,
-        sold: false
-      });
-    }
-
-    const rareHerbs = window.TuTien.HERB_TYPES.filter(h => h.mapOnly);
-    for (let i = 0; i < 2; i++) {
-      const h = rareHerbs[Math.floor(Math.random() * rareHerbs.length)];
-      const qObj = Inv.getQualityByTier(Utils.randomInt(3, 5));
-      stock.push({
-        stockId: `m_herb_${i}`,
-        type: 'item_herb',
-        herbDef: h,
-        qualityObj: qObj,
-        qty: 2,
-        icon: h.icon,
-        name: `${h.name} ×2`,
-        qualityName: qObj.name,
-        qualityColor: qObj.color,
-        desc: h.shortDesc || h.desc,
-        costLow: 35 * qObj.tier,
-        sold: false
-      });
-    }
-
-    const pillRec = window.TuTien.PILL_RECIPES[Math.floor(Math.random() * window.TuTien.PILL_RECIPES.length)];
-    const pillQ = Inv.getQualityByTier(Utils.randomInt(3, 5));
-    stock.push({
-      stockId: 'm_ready_pill',
-      type: 'item_pill',
-      recipe: pillRec,
-      qualityObj: pillQ,
-      icon: pillRec.icon,
-      name: pillRec.name,
-      qualityName: pillQ.name,
-      qualityColor: pillQ.color,
-      desc: `${pillRec.getEffectText(5)} (${pillQ.name} x${pillQ.mult})`,
-      costLow: 55 * pillQ.tier,
-      sold: false
-    });
-
-    const talRec = window.TuTien.TALISMAN_RECIPES[Math.floor(Math.random() * window.TuTien.TALISMAN_RECIPES.length)];
-    const talQ = Inv.getQualityByTier(Utils.randomInt(3, 5));
-    stock.push({
-      stockId: 'm_ready_tal',
-      type: 'item_talisman',
-      recipe: talRec,
-      qualityObj: talQ,
-      icon: talRec.icon,
-      name: talRec.name,
-      qualityName: talQ.name,
-      qualityColor: talQ.color,
-      desc: talRec.shortDesc || talRec.description,
-      costLow: 50 * talQ.tier,
-      sold: false
-    });
-
-    this.merchantStock = stock;
-  },
-
-  buyMerchantItem(stockId) {
-    const entry = this.merchantStock.find(s => s.stockId === stockId);
-    if (!entry || entry.sold) return false;
-
-    const Inv = window.TuTien.Inventory;
-    const State = window.TuTien.State;
-    const Upgrades = window.TuTien.Upgrades;
-    const Fields = window.TuTien.Fields;
-
-    if (!Inv.canAffordSpiritStonesInLow(entry.costLow)) {
-      window.TuTien.UI.showToast(
-        `Không đủ Linh Thạch! Cần ${Inv.formatSpiritStoneCost(entry.costLow)}.`,
-        'warn'
-      );
-      return false;
-    }
-
-    Inv.spendSpiritStonesInLow(entry.costLow);
-    entry.sold = true;
-
-    if (entry.type === 'unlock_tech') {
-      Upgrades.unlockTechnique(entry.targetId);
-      State.addLog(`📘 Đã mua & lĩnh ngộ 【${entry.name}】 từ Vân Du Tiên Thương!`, 'success');
-    } else if (entry.type === 'upgrade_tech_quality') {
-      const curTier = Upgrades.getUpgradeQualityTier(entry.targetId);
-      State.data.upgradeQualities[entry.targetId] = Math.min(5, curTier + 1);
-      State.addLog(`📖 Đã mua 【${entry.name}】, thăng bậc Phẩm Chất Công Pháp!`, 'success');
-    } else if (entry.type === 'unlock_pill_recipe') {
-      Fields.unlockPillRecipe(entry.targetId);
-      State.addLog(`📜 Đã lĩnh ngộ 【${entry.name}】! Có thể luyện chế trong Đan Phòng.`, 'success');
-    } else if (entry.type === 'unlock_talisman_recipe') {
-      Fields.unlockTalismanRecipe(entry.targetId);
-      State.addLog(`🧧 Đã lĩnh ngộ 【${entry.name}】! Có thể họa phù trong Phù Đường.`, 'success');
-    } else if (entry.type === 'item_herb') {
-      Inv.addStackableItem(
-        'herb',
-        entry.herbDef.id,
-        entry.herbDef.name,
-        entry.herbDef.icon,
-        entry.qualityObj,
-        entry.desc,
-        entry.qty
-      );
-      State.addLog(`🌿 Đã mua ${entry.name} [${entry.qualityName}] cất vào Túi Đồ!`, 'success');
-    } else if (entry.type === 'item_pill') {
-      Inv.addStackableItem(
-        'pill',
-        entry.recipe.id,
-        entry.recipe.name,
-        entry.recipe.icon,
-        entry.qualityObj,
-        entry.desc,
-        1
-      );
-      State.addLog(`⚗️ Đã mua 1 viên 【${entry.name} — ${entry.qualityName}】 cất vào Túi Đồ!`, 'success');
-    } else if (entry.type === 'item_talisman') {
-      Inv.addStackableItem(
-        'talisman',
-        entry.recipe.id,
-        entry.recipe.name,
-        entry.recipe.icon,
-        entry.qualityObj,
-        entry.desc,
-        1
-      );
-      State.addLog(`📜 Đã mua 1 lá 【${entry.name} — ${entry.qualityName}】 cất vào Túi Đồ!`, 'success');
-    }
-
-    if (window.TuTien.Audio) window.TuTien.Audio.playCraftSuccess(4);
-    if (window.TuTien.UI) {
-      window.TuTien.UI.showToast(`Đã mua: ${entry.name}!`, 'success', 'happy');
-      window.TuTien.UI.updateAll();
-    }
-    this.renderMerchantView();
-    this.updateHeaderDOM();
-    return true;
-  },
-
-  /**
-   * Lấy đường dẫn ảnh Sprite di chuyển 4 hướng (4 frame 01..04) của Nam / Nữ từ `assets/sprites_walk/`
-   */
-  getPlayerMapSpriteInfo() {
-    const prefix =
-      window.TuTien.Character && window.TuTien.Character.getGender() === 'female' ? 'nu' : 'nam';
-
-    let dirKey = 'xuong';
-    if (this.facingDir === 'up') dirKey = 'len';
-    else if (this.facingDir === 'left') dirKey = 'trai';
-    else if (this.facingDir === 'right') dirKey = 'phai';
-
-    const frameIdx = this.isMoving ? (this.walkFrame % 4) + 1 : 1;
-    const frameStr = String(frameIdx).padStart(2, '0');
-
+    const realm = window.TuTien.State
+      ? window.TuTien.State.getCurrentRealm()
+      : { fullName: 'Luyện Khí Tầng 1' };
     return {
-      src: `assets/sprites_walk/${prefix}/${prefix}_di_${dirKey}_${frameStr}.png`,
-      flipX: false
+      realmName: realm.fullName,
+      maxHp: cStats.maxHp,
+      maxMp: cStats.maxMp,
+      attack: cStats.attack,
+      speed: cStats.speed
     };
   },
 
-  getCombatPoseSprite(gender, pose = 'idle') {
-    const folder = gender === 'female' ? 'nu' : 'nam';
-    if (pose === 'down') {
-      return `assets/sprites/${folder}/hang7/hang7_6.png`;
+  getSecretTimerStatusHtml() {
+    if (this.secretRealm) {
+      const remainSec = Math.max(1, Math.ceil(this.secretRealm.remainingMs / 1000));
+      return `🌀 <strong style="color:${this.secretRealm.color}">${this.secretRealm.rankLabel}</strong> (${remainSec}s) — Bấm để tới`;
     }
-    if (pose === 'attack') {
-      return `assets/sprites/${folder}/hang4.png`;
-    }
-    if (pose === 'skill') {
-      return folder === 'nam'
-        ? `assets/sprites/nam/hang7/hang7_5.png`
-        : `assets/sprites/nu/hang7/hang7_1.png`;
-    }
-    if (pose === 'meditate') {
-      return `assets/sprites/${folder}/hang7/hang7_2.png`;
-    }
-    if (pose === 'hurt') {
-      return folder === 'nam'
-        ? `assets/sprites/nam/hang7/hang7_4.png`
-        : `assets/sprites/nu/hang3.png`;
-    }
-    return folder === 'nam'
-      ? `assets/sprites/nam/hang7/hang7_1.png`
-      : `assets/sprites/nu/hang1.png`;
-  },
-
-  formatTimerMMSS(ms) {
-    const totalSec = Math.max(0, Math.ceil(ms / 1000));
-    const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
-    const s = String(totalSec % 60).padStart(2, '0');
-    return `${m}:${s}`;
+    const nextSec = Math.max(1, Math.ceil(this.nextSecretSpawnMs / 1000));
+    return `🌀 Bí Cảnh: <strong>${nextSec}s</strong>`;
   },
 
   renderPanel() {
     const container = document.getElementById('expedition-panel-container');
     if (!container) return;
 
-    const pStats = window.TuTien.Character.getCombatStats();
-    const st = window.TuTien.Inventory.getSpiritStones();
     const Utils = window.TuTien.Utils;
-    const initSprite = this.getPlayerMapSpriteInfo();
+    const pStats = this.getPlayerStats();
+    const Inv = window.TuTien.Inventory;
+    const bagCount = Inv ? Inv.getBagData().items.reduce((s, it) => s + (it.count || 1), 0) : 0;
+
+    const matCompactHtml = (window.TuTien.FORGE_MATERIALS || [])
+      .map(m => `<span class="ncb-mat-item" title="${m.name}">${m.icon}<strong id="nsb-mat-${m.id}">${Inv ? Inv.getMaterialCountById(m.id) : 0}</strong></span>`)
+      .join('');
 
     container.innerHTML = `
-      <!-- Thanh thông tin tinh gọn: Kho Linh Thạch, Nút nhỏ thu gọn/hiện Chỉ Số, Thời gian làm mới & Tọa độ -->
-      <div class="exp-compact-topbar">
-        <div class="exp-stones-bar" title="100 Hạ Phẩm = 1 Trung Phẩm • 100 Trung Phẩm = 1 Thượng Phẩm">
-          <span class="stone-chip low-stone">💎 Hạ: <strong id="exp-stone-low">${st.low || 0}</strong></span>
-          <span class="stone-chip mid-stone">💠 Trung: <strong id="exp-stone-mid">${st.mid || 0}</strong></span>
-          <span class="stone-chip high-stone">🌟 Thượng: <strong id="exp-stone-high">${st.high || 0}</strong></span>
-          <button id="btn-toggle-exp-stats" class="btn-ancient-sm exp-stats-toggle-btn">
-            ${this.statsExpanded ? '📊 Ẩn Chỉ Số ▴' : '📊 Chỉ Số ▾'}
+      <!-- 1. THANH CÔNG CỤ TÓM GỌN 1 DÒNG DUY NHẤT (SIÊU GỌN, CÓ NÚT XỔ CHỈ SỐ CHI TIẾT) -->
+      <div class="newbie-compact-toolbar">
+        <div class="nct-left">
+          <button id="btn-toggle-exp-stats" class="btn-ancient-sm affordable nct-stats-btn" title="Xem chi tiết Cảnh giới, Máu, Linh lực, Sức mạnh">
+            📊 Chỉ Số ▾
+          </button>
+          <span class="nsb-chip hp-chip">❤️ <strong id="nsb-hp">${Utils.formatNumber(this.playerCurrentHp)}/${Utils.formatNumber(pStats.maxHp)}</strong></span>
+          <div class="ncb-mat-group">
+            ${matCompactHtml}
+          </div>
+          <button id="nsb-secret-timer" class="nsb-chip secret-timer-chip ${this.secretRealm ? 'secret-active-chip' : ''}" title="Khi Bí Cảnh xuất hiện, bấm vào đây để cuộn nhanh tới Bí Cảnh">
+            ${this.getSecretTimerStatusHtml()}
           </button>
         </div>
 
-        <div class="exp-timer-box">
-          <span class="exp-refresh-clock">⏳ Làm mới: <strong id="exp-refresh-timer">${this.formatTimerMMSS(this.refreshRemainingMs)}</strong></span>
-          <span class="exp-coord-badge" id="exp-coord-text">📍 (${Math.round(this.playerX)}, ${Math.round(this.playerY)})</span>
+        <div class="nct-right">
+          <span id="newbie-coord-readout" class="newbie-coord-badge">
+            🧭 (${this.cursorX}, ${this.cursorY})
+          </span>
+          <button id="btn-newbie-reroll-mobs" class="btn-ancient-sm affordable" title="Đổi ngẫu nhiên vị trí Quái & Tu Sĩ">
+            🔄 Đổi Quái
+          </button>
+          <button id="btn-newbie-heal" class="btn-ancient-sm affordable" title="Vận công hồi đầy HP và Linh lực">
+            🧘 Hồi Phục
+          </button>
+          <button id="btn-newbie-forge" class="btn-ancient-sm affordable" title="Chế tạo Pháp Bảo từ Sắt, Đá, Gỗ, Vàng">
+            🔨 Rèn Pháp Bảo
+          </button>
+          <button id="btn-newbie-bag" class="btn-ancient-sm affordable">
+            🎒 Túi Đồ (<span id="nsb-bag-count">${bagCount}</span>)
+          </button>
+        </div>
+
+        <!-- Hộp xổ xuống (Popover) hiển thị chi tiết Cảnh Giới, MP, Sức Mạnh, Linh Thạch khi bấm "📊 Chỉ Số ▾" -->
+        <div id="exp-stats-popover" class="exp-stats-popover hidden">
+          <div class="esp-row"><span>☯️ Cảnh giới:</span> <strong id="nsb-realm">${pStats.realmName}</strong></div>
+          <div class="esp-row"><span>💧 Linh lực (MP):</span> <strong id="nsb-mp">${Utils.formatNumber(this.playerCurrentMp)} / ${Utils.formatNumber(pStats.maxMp)}</strong></div>
+          <div class="esp-row"><span>⚔️ Sức mạnh công kích:</span> <strong id="nsb-atk">${Utils.formatNumber(pStats.attack)}</strong></div>
+          <div class="esp-row"><span>💨 Tốc độ thân pháp:</span> <strong>${Utils.formatNumber(pStats.speed)}</strong></div>
         </div>
       </div>
 
-      <!-- Dải 4 chỉ số chiến đấu (có thể thu gọn / mở rộng bằng nút nhỏ) -->
-      <div id="exp-collapsible-stats" class="exp-collapsible-stats ${this.statsExpanded ? '' : 'hidden'}">
-        <span class="exp-stat-pill">❤️ Máu: <strong id="exp-hdr-hp">${Utils.formatNumber(pStats.maxHp)}</strong></span>
-        <span class="exp-stat-pill">💧 Linh Lực: <strong id="exp-hdr-mp">${Utils.formatNumber(pStats.maxMp)}</strong></span>
-        <span class="exp-stat-pill">💨 Tốc: <strong id="exp-hdr-spd">${Utils.formatNumber(pStats.speed)}</strong></span>
-        <span class="exp-stat-pill">⚔️ Công: <strong id="exp-hdr-atk">${Utils.formatNumber(pStats.attack)}</strong></span>
-      </div>
+      <!-- 2. KHUNG BẢN ĐỒ CỔ QUYỂN PHÓNG TO TOÀN KHUNG NHÌN -->
+      <div id="newbie-map-scroll" class="newbie-map-scroll-wrap">
+        <!-- Dải thông báo nổi gọn gàng ngay mép trên bản đồ (không chiếm diện tích bên ngoài) -->
+        <div id="newbie-anomaly-banner" class="newbie-floating-banner ${this.secretRealm ? 'anomaly-active' : ''}">
+          ${this.lastLootBannerHtml || 'Vuốt cảm ứng / kéo chuột để di chuyển. Đánh bại Yêu Thú / Tu Sĩ sẽ tự động thu chiến lợi phẩm và thoát ra bản đồ!'}
+        </div>
 
-      <!-- 1. KHUNG NHÌN BẢN ĐỒ BÍ CẢNH HỒNG HOANG 2000×2000 -->
-      <div id="expedition-map-view" class="exp-map-wrapper ${this.activeView === 'map' ? '' : 'hidden'}">
-        <div id="expedition-map-viewport" class="exp-map-viewport">
-          <div id="expedition-world-layer" class="exp-world-layer">
-            <canvas id="exp-terrain-canvas" width="2000" height="2000" class="exp-terrain-canvas"></canvas>
+        <div id="newbie-map-canvas" class="newbie-map-surface" style="width:${this.MAP_WIDTH}px;height:${this.MAP_HEIGHT}px;">
+          <img src="${window.TuTien.NEWBIE_MAP_DATA_URI || 'assets/newbie_map.jpg?v=coquyen4'}" class="newbie-map-bg-img" alt="Bản Đồ Tu Tiên Cổ Quyển" draggable="false" />
+          <div class="newbie-coord-grid-overlay"></div>
 
-            <div class="exp-world-biome-label biome-center">⛩️ Thái Thanh Linh Cốc</div>
-            <div class="exp-world-biome-label biome-nw">🟣 U Minh Ma Vực</div>
-            <div class="exp-world-biome-label biome-ne">❄️ Hàn Băng Tuyết Đỉnh</div>
-            <div class="exp-world-biome-label biome-sw">🔥 Xích Viêm Hỏa Sơn</div>
-            <div class="exp-world-biome-label biome-se">🌊 Bích Hải Linh Đảo</div>
-
-            <div id="exp-target-marker" class="exp-target-marker hidden"></div>
-            <div id="exp-entities-layer" class="exp-entities-layer"></div>
-
-            <div id="exp-player-token" class="exp-player-token" style="left:${this.playerX}px;top:${this.playerY}px">
-              <span class="exp-player-name-tag">✦ Bạn ✦</span>
-              <img id="exp-player-sprite-img" src="${initSprite.src}" alt="Tu sĩ" />
-              <span class="exp-player-foot-ring"></span>
-            </div>
-
-            <canvas id="exp-fog-canvas" width="500" height="500" class="exp-fog-canvas"></canvas>
+          <div class="map-axis-x">
+            <span>X: 150</span><span>X: 350</span><span>X: 560</span><span>X: 750</span><span>X: 950</span>
+          </div>
+          <div class="map-axis-y">
+            <span>Y: 200</span><span>Y: 500</span><span>Y: 800</span><span>Y: 1100</span><span>Y: 1380</span>
           </div>
 
-          <div class="exp-minimap-box" title="Thần Thức Đồ 2000×2000">
-            <canvas id="exp-minimap-canvas" width="116" height="116"></canvas>
-          </div>
+          <div id="newbie-mobs-layer" class="newbie-entities-layer"></div>
+          <div id="newbie-secret-layer" class="newbie-entities-layer"></div>
         </div>
       </div>
 
-      <!-- 2. GIAO DIỆN CHIẾN ĐẤU LINH ĐÀI TU TIÊN (THANH MÁU TRÊN ĐẦU MÌNH LÀ CỦA MÌNH, DƯỚI CHÂN ĐỊCH LÀ CỦA ĐỊCH) -->
-      <div id="expedition-combat-view" class="exp-combat-wrapper ${this.activeView === 'combat' ? '' : 'hidden'}"></div>
+      <!-- 3. POPUP THÔNG TIN QUÁI / TU SĨ & BÍ CẢNH PHÓNG TO -->
+      <div id="newbie-popup-overlay" class="newbie-inner-modal hidden"></div>
 
-      <!-- 3. GIAO DIỆN KỲ TRÂN CÁC CỦA VÂN DU TIÊN THƯƠNG -->
-      <div id="expedition-merchant-view" class="exp-combat-wrapper ${this.activeView === 'merchant' ? '' : 'hidden'}"></div>
+      <!-- 4. POPUP TÚI ĐỒ NHANH -->
+      <div id="newbie-bag-modal" class="newbie-inner-modal hidden"></div>
+
+      <!-- 5. POPUP CHẾ TẠO PHÁP BẢO -->
+      <div id="newbie-forge-modal" class="newbie-inner-modal hidden"></div>
     `;
 
-    this.mapViewEl = document.getElementById('expedition-map-view');
-    this.viewportEl = document.getElementById('expedition-map-viewport');
-    this.worldLayerEl = document.getElementById('expedition-world-layer');
-    this.terrainCanvasEl = document.getElementById('exp-terrain-canvas');
-    this.fogCanvasEl = document.getElementById('exp-fog-canvas');
-    this.minimapCanvasEl = document.getElementById('exp-minimap-canvas');
-    this.nodesLayerEl = document.getElementById('exp-entities-layer');
-    this.playerTokenEl = document.getElementById('exp-player-token');
-    this.playerSpriteImgEl = document.getElementById('exp-player-sprite-img');
-    this.targetMarkerEl = document.getElementById('exp-target-marker');
-    this.combatViewEl = document.getElementById('expedition-combat-view');
-    this.merchantViewEl = document.getElementById('expedition-merchant-view');
+    this.mapScrollEl = document.getElementById('newbie-map-scroll');
+    this.mapCanvasEl = document.getElementById('newbie-map-canvas');
+    this.coordDisplayEl = document.getElementById('newbie-coord-readout');
+    this.anomalyBannerEl = document.getElementById('newbie-anomaly-banner');
+    this.secretTimerChipEl = document.getElementById('nsb-secret-timer');
+    this.statsPopoverEl = document.getElementById('exp-stats-popover');
+    this.mobsLayerEl = document.getElementById('newbie-mobs-layer');
+    this.secretLayerEl = document.getElementById('newbie-secret-layer');
+    this.popupOverlayEl = document.getElementById('newbie-popup-overlay');
+    this.bagModalEl = document.getElementById('newbie-bag-modal');
+    this.forgeModalEl = document.getElementById('newbie-forge-modal');
 
-    const toggleStatsBtn = document.getElementById('btn-toggle-exp-stats');
-    const collapsibleStatsEl = document.getElementById('exp-collapsible-stats');
-    if (toggleStatsBtn && collapsibleStatsEl) {
-      toggleStatsBtn.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        this.statsExpanded = !this.statsExpanded;
-        collapsibleStatsEl.classList.toggle('hidden', !this.statsExpanded);
-        toggleStatsBtn.textContent = this.statsExpanded ? '📊 Ẩn Chỉ Số ▴' : '📊 Chỉ Số ▾';
-      });
-    }
+    this.bindMapTouchAndMousePan();
 
-    if (this.viewportEl) {
-      this.viewportEl.addEventListener('pointerdown', e => {
-        if (this.activeView !== 'map') return;
-        if (e.target.closest('.exp-entity-node') || e.target.closest('.exp-minimap-box')) return;
-        e.preventDefault();
-        const rect = this.viewportEl.getBoundingClientRect();
-        const clickViewX = e.clientX - rect.left;
-        const clickViewY = e.clientY - rect.top;
-        const worldX = window.TuTien.Utils.clamp(clickViewX + this.cameraX, 65, this.WORLD_W - 65);
-        const worldY = window.TuTien.Utils.clamp(clickViewY + this.cameraY, 75, this.WORLD_H - 65);
-        this.moveToPoint(worldX, worldY, null);
-      });
-    }
-
-    this.drawProceduralTerrainCanvas();
-    this.renderMapNodes();
-    this.initFogCanvas();
-    this.updateCameraAndPlayerDOM();
-    this.updateFogVisibilityForNodes();
-    this.renderMinimap();
-
-    if (this.activeView === 'combat') {
-      this.renderCombatView();
-    } else if (this.activeView === 'merchant') {
-      this.renderMerchantView();
-    }
-  },
-
-  updateHeaderDOM() {
-    if (!this.isOpen) return;
-    const Utils = window.TuTien.Utils;
-    const pStats = window.TuTien.Character.getCombatStats();
-    const st = window.TuTien.Inventory.getSpiritStones();
-
-    const setTxt = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-    setTxt('exp-hdr-hp', Utils.formatNumber(pStats.maxHp));
-    setTxt('exp-hdr-mp', Utils.formatNumber(pStats.maxMp));
-    setTxt('exp-hdr-spd', Utils.formatNumber(pStats.speed));
-    setTxt('exp-hdr-atk', Utils.formatNumber(pStats.attack));
-    setTxt('exp-stone-low', st.low || 0);
-    setTxt('exp-stone-mid', st.mid || 0);
-    setTxt('exp-stone-high', st.high || 0);
-    setTxt('exp-refresh-timer', this.formatTimerMMSS(this.refreshRemainingMs));
-    setTxt('exp-coord-text', `📍 (${Math.round(this.playerX)}, ${Math.round(this.playerY)})`);
-  },
-
-  initFogCanvas() {
-    if (!this.fogCanvasEl) return;
-    this.fogCtx = this.fogCanvasEl.getContext('2d');
-    if (!this.fogCtx) return;
-
-    const w = this.fogCanvasEl.width;
-    const h = this.fogCanvasEl.height;
-    this.fogCtx.globalCompositeOperation = 'source-over';
-    this.fogCtx.fillStyle = 'rgba(4, 10, 16, 0.88)';
-    this.fogCtx.fillRect(0, 0, w, h);
-
-    this.exploredPoints.forEach(pt => {
-      this.carveFogCircle(pt.x, pt.y, pt.r);
-    });
-  },
-
-  carveFogCircle(worldX, worldY, radiusWorld) {
-    if (!this.fogCtx) return;
-    const cx = worldX / this.FOG_SCALE;
-    const cy = worldY / this.FOG_SCALE;
-    const r = radiusWorld / this.FOG_SCALE;
-
-    this.fogCtx.save();
-    this.fogCtx.globalCompositeOperation = 'destination-out';
-    const grad = this.fogCtx.createRadialGradient(cx, cy, r * 0.45, cx, cy, r);
-    grad.addColorStop(0, 'rgba(0,0,0,1)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    this.fogCtx.fillStyle = grad;
-    this.fogCtx.beginPath();
-    this.fogCtx.arc(cx, cy, r, 0, Math.PI * 2);
-    this.fogCtx.fill();
-    this.fogCtx.restore();
-  },
-
-  revealFogAtPlayer() {
-    const last = this.exploredPoints[this.exploredPoints.length - 1];
-    if (!last || Math.hypot(last.x - this.playerX, last.y - this.playerY) >= 28) {
-      this.exploredPoints.push({ x: this.playerX, y: this.playerY, r: this.REVEAL_RADIUS });
-      this.carveFogCircle(this.playerX, this.playerY, this.REVEAL_RADIUS);
-      this.updateFogVisibilityForNodes();
-      this.renderMinimap();
-    }
-  },
-
-  isPointExplored(worldX, worldY) {
-    for (let i = 0; i < this.exploredPoints.length; i++) {
-      const pt = this.exploredPoints[i];
-      if (Math.hypot(pt.x - worldX, pt.y - worldY) <= pt.r * 0.92) {
-        return true;
-      }
-    }
-    return false;
-  },
-
-  updateFogVisibilityForNodes() {
-    if (!this.nodesLayerEl) return;
-    this.nodes.forEach(n => {
-      const dom = document.getElementById(`map-node-${n.id}`);
-      if (!dom) return;
-      const visible = this.isPointExplored(n.x, n.y);
-      dom.classList.toggle('hidden-in-fog', !visible);
-    });
-  },
-
-  renderMinimap() {
-    if (!this.minimapCanvasEl) return;
-    if (!this.minimapCtx) {
-      this.minimapCtx = this.minimapCanvasEl.getContext('2d');
-    }
-    const ctx = this.minimapCtx;
-    if (!ctx) return;
-
-    const mw = this.minimapCanvasEl.width;
-    const mh = this.minimapCanvasEl.height;
-    const scale = mw / this.WORLD_W;
-
-    ctx.clearRect(0, 0, mw, mh);
-    ctx.fillStyle = '#050d12';
-    ctx.fillRect(0, 0, mw, mh);
-
-    ctx.fillStyle = 'rgba(34, 92, 68, 0.85)';
-    this.exploredPoints.forEach(pt => {
-      ctx.beginPath();
-      ctx.arc(pt.x * scale, pt.y * scale, pt.r * scale, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    this.nodes.forEach(n => {
-      if (!this.isPointExplored(n.x, n.y)) return;
-      ctx.beginPath();
-      if (n.nodeCategory === 'merchant') {
-        ctx.fillStyle = '#fbbf24';
-        ctx.arc(n.x * scale, n.y * scale, 3, 0, Math.PI * 2);
-      } else if (n.nodeCategory === 'herb') {
-        ctx.fillStyle = '#4ade80';
-        ctx.arc(n.x * scale, n.y * scale, 2.2, 0, Math.PI * 2);
-      } else if (n.nodeCategory === 'ore') {
-        ctx.fillStyle = '#38bdf8';
-        ctx.arc(n.x * scale, n.y * scale, 2.2, 0, Math.PI * 2);
-      } else {
-        ctx.fillStyle = n.isOverlevel ? '#f43f5e' : '#fb923c';
-        ctx.arc(n.x * scale, n.y * scale, n.isOverlevel ? 3 : 2.3, 0, Math.PI * 2);
-      }
-      ctx.fill();
-    });
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(this.playerX * scale, this.playerY * scale, 3.4, 0, Math.PI * 2);
-    ctx.fill();
-  },
-
-  renderMapNodes() {
-    if (!this.nodesLayerEl) return;
-    const Utils = window.TuTien.Utils;
-
-    this.nodesLayerEl.innerHTML = this.nodes
-      .map(n => {
-        if (n.nodeCategory === 'enemy') {
-          const isRogue = n.type === 'cultivator';
-          const roguePrefix = n.gender === 'female' ? 'nu' : 'nam';
-          const visualHtml = isRogue
-            ? `<div class="exp-token-circle rogue-circle"><img src="assets/sprites_walk/${roguePrefix}/${roguePrefix}_di_xuong_01.png" class="exp-rogue-sprite" alt="${n.name}" /></div>`
-            : `<div class="exp-token-circle ${n.isOverlevel ? 'boss-glow' : ''}">${n.icon}</div>`;
-
-          return `
-            <div id="map-node-${n.id}" class="exp-entity-node ${n.isOverlevel ? 'overlevel-node' : ''}"
-                 data-node-id="${n.id}"
-                 style="left:${n.x}px;top:${n.y}px">
-              <div class="exp-entity-tag">
-                <div class="exp-ent-realm">${n.isOverlevel ? '🔥 ' : ''}${n.realmName}</div>
-                <div class="exp-ent-name">${n.name}</div>
-                <div class="exp-ent-spd">💨 ${Utils.formatNumber(n.speed)} • ⚔️ ${Utils.formatNumber(n.attack)}</div>
-              </div>
-              ${visualHtml}
-            </div>
-          `;
-        }
-
-        if (n.nodeCategory === 'herb') {
-          return `
-            <div id="map-node-${n.id}" class="exp-entity-node resource-node"
-                 data-node-id="${n.id}"
-                 style="left:${n.x}px;top:${n.y}px">
-              <div class="exp-entity-tag" style="border-color:${n.qualityColor}">
-                <div class="exp-ent-realm" style="color:${n.qualityColor}">✦ ${n.qualityName}</div>
-                <div class="exp-ent-name">${n.name} ×${n.qty}</div>
-              </div>
-              <div class="exp-token-circle herb-circle" style="border-color:${n.qualityColor}">${n.icon}</div>
-            </div>
-          `;
-        }
-
-        if (n.nodeCategory === 'ore') {
-          return `
-            <div id="map-node-${n.id}" class="exp-entity-node resource-node"
-                 data-node-id="${n.id}"
-                 style="left:${n.x}px;top:${n.y}px">
-              <div class="exp-entity-tag" style="border-color:${n.color}">
-                <div class="exp-ent-realm" style="color:${n.color}">⛏️ Linh Khoáng</div>
-                <div class="exp-ent-name">${n.name} (+${n.amount})</div>
-              </div>
-              <div class="exp-token-circle ore-circle" style="border-color:${n.color}">${n.icon}</div>
-            </div>
-          `;
-        }
-
-        return `
-          <div id="map-node-${n.id}" class="exp-entity-node merchant-node"
-               data-node-id="${n.id}"
-               style="left:${n.x}px;top:${n.y}px">
-            <div class="exp-entity-tag" style="border-color:#fbbf24">
-              <div class="exp-ent-realm" style="color:#fde047">${n.title}</div>
-              <div class="exp-ent-name">${n.name}</div>
-            </div>
-            <div class="exp-token-circle merchant-circle">${n.icon}</div>
-          </div>
-        `;
-      })
-      .join('');
-
-    this.nodesLayerEl.querySelectorAll('.exp-entity-node').forEach(dom => {
-      dom.addEventListener('pointerdown', e => {
+    const statsToggleBtn = document.getElementById('btn-toggle-exp-stats');
+    if (statsToggleBtn && this.statsPopoverEl) {
+      statsToggleBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
         e.stopPropagation();
-        const nodeId = dom.getAttribute('data-node-id');
-        const nodeObj = this.nodes.find(x => x.id === nodeId);
-        if (nodeObj) {
-          this.moveToPoint(nodeObj.x, nodeObj.y, nodeObj.id);
+        this.statsDropdownOpen = !this.statsDropdownOpen;
+        this.statsPopoverEl.classList.toggle('hidden', !this.statsDropdownOpen);
+        statsToggleBtn.textContent = this.statsDropdownOpen ? '📊 Chỉ Số ▴' : '📊 Chỉ Số ▾';
+      });
+    }
+
+    if (this.secretTimerChipEl) {
+      this.secretTimerChipEl.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (this.secretRealm && this.mapScrollEl) {
+          this.mapScrollEl.scrollTo({
+            left: Math.max(0, this.secretRealm.x - this.mapScrollEl.clientWidth / 2),
+            top: Math.max(0, this.secretRealm.y - this.mapScrollEl.clientHeight / 2),
+            behavior: 'smooth'
+          });
+          this.openSecretRealmPopup();
+        } else if (window.TuTien.UI) {
+          const waitSec = Math.max(1, Math.ceil(this.nextSecretSpawnMs / 1000));
+          window.TuTien.UI.showToast(`⏳ Dị tượng Bí Cảnh tiếp theo sẽ xuất hiện sau ${waitSec} giây!`, 'info');
         }
       });
+    }
+
+    const rerollBtn = document.getElementById('btn-newbie-reroll-mobs');
+    if (rerollBtn) {
+      rerollBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.spawnAllRandomMobs();
+        this.renderMobSpots();
+        if (window.TuTien.UI) {
+          window.TuTien.UI.showToast('🔄 Đã đổi ngẫu nhiên toàn bộ vị trí Yêu Thú & Tu Sĩ!', 'info');
+        }
+      });
+    }
+
+    const healBtn = document.getElementById('btn-newbie-heal');
+    if (healBtn) {
+      healBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const st = this.getPlayerStats();
+        this.playerCurrentHp = st.maxHp;
+        this.playerCurrentMp = st.maxMp;
+        this.updateStatusBar();
+        if (window.TuTien.UI) {
+          window.TuTien.UI.showToast('🧘 Đã vận công điều tức, hồi đầy HP và Linh lực!', 'success');
+        }
+      });
+    }
+
+    const bagBtn = document.getElementById('btn-newbie-bag');
+    if (bagBtn) {
+      bagBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.openQuickBagModal();
+      });
+    }
+
+    const forgeBtn = document.getElementById('btn-newbie-forge');
+    if (forgeBtn) {
+      forgeBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.openQuickForgeModal();
+      });
+    }
+
+    this.renderMobSpots();
+    this.renderSecretRealmSpot();
+  },
+
+  bindMapTouchAndMousePan() {
+    if (!this.mapScrollEl || !this.mapCanvasEl) return;
+
+    const updateCoordFromClient = (clientX, clientY) => {
+      const rect = this.mapCanvasEl.getBoundingClientRect();
+      const x = Math.max(0, Math.min(this.MAP_WIDTH, Math.round(clientX - rect.left)));
+      const y = Math.max(0, Math.min(this.MAP_HEIGHT, Math.round(clientY - rect.top)));
+      this.cursorX = x;
+      this.cursorY = y;
+      if (this.coordDisplayEl) {
+        this.coordDisplayEl.textContent = `🧭 (${x}, ${y})`;
+      }
+    };
+
+    this.mapScrollEl.addEventListener('pointerdown', e => {
+      if (this.statsDropdownOpen && this.statsPopoverEl) {
+        this.statsDropdownOpen = false;
+        this.statsPopoverEl.classList.add('hidden');
+        const btn = document.getElementById('btn-toggle-exp-stats');
+        if (btn) btn.textContent = '📊 Chỉ Số ▾';
+      }
+      this.isDraggingMap = true;
+      this.dragMoved = false;
+      this.dragStartX = e.clientX;
+      this.dragStartY = e.clientY;
+      this.dragStartScrollLeft = this.mapScrollEl.scrollLeft;
+      this.dragStartScrollTop = this.mapScrollEl.scrollTop;
+      this.mapScrollEl.classList.add('is-panning');
+      updateCoordFromClient(e.clientX, e.clientY);
+    });
+
+    this.mapScrollEl.addEventListener('pointermove', e => {
+      updateCoordFromClient(e.clientX, e.clientY);
+      if (!this.isDraggingMap) return;
+
+      const dx = e.clientX - this.dragStartX;
+      const dy = e.clientY - this.dragStartY;
+      if (Math.hypot(dx, dy) > 6) {
+        this.dragMoved = true;
+      }
+      if (this.dragMoved) {
+        this.mapScrollEl.scrollLeft = this.dragStartScrollLeft - dx;
+        this.mapScrollEl.scrollTop = this.dragStartScrollTop - dy;
+      }
+    });
+
+    const stopDragging = () => {
+      this.isDraggingMap = false;
+      if (this.mapScrollEl) {
+        this.mapScrollEl.classList.remove('is-panning');
+      }
+    };
+
+    this.mapScrollEl.addEventListener('pointerup', stopDragging);
+    this.mapScrollEl.addEventListener('pointercancel', stopDragging);
+    this.mapScrollEl.addEventListener('pointerleave', stopDragging);
+  },
+
+  updateStatusBar() {
+    if (!this.isOpen) return;
+    const Utils = window.TuTien.Utils;
+    const pStats = this.getPlayerStats();
+    const Inv = window.TuTien.Inventory;
+    const bagCount = Inv ? Inv.getBagData().items.reduce((s, it) => s + (it.count || 1), 0) : 0;
+
+    const rEl = document.getElementById('nsb-realm');
+    const hpEl = document.getElementById('nsb-hp');
+    const mpEl = document.getElementById('nsb-mp');
+    const atkEl = document.getElementById('nsb-atk');
+    const bagEl = document.getElementById('nsb-bag-count');
+
+    if (rEl) rEl.textContent = pStats.realmName;
+    if (hpEl) hpEl.textContent = `${Utils.formatNumber(this.playerCurrentHp)}/${Utils.formatNumber(pStats.maxHp)}`;
+    if (mpEl) mpEl.textContent = `${Utils.formatNumber(this.playerCurrentMp)} / ${Utils.formatNumber(pStats.maxMp)}`;
+    if (atkEl) atkEl.textContent = Utils.formatNumber(pStats.attack);
+    if (bagEl) bagEl.textContent = bagCount;
+    if (this.secretTimerChipEl) {
+      this.secretTimerChipEl.innerHTML = this.getSecretTimerStatusHtml();
+      this.secretTimerChipEl.classList.toggle('secret-active-chip', !!this.secretRealm);
+    }
+
+    (window.TuTien.FORGE_MATERIALS || []).forEach(m => {
+      const mEl = document.getElementById(`nsb-mat-${m.id}`);
+      if (mEl && Inv) {
+        mEl.textContent = Inv.getMaterialCountById(m.id);
+      }
     });
   },
 
-  moveToPoint(worldX, worldY, nodeId = null) {
-    this.targetX = worldX;
-    this.targetY = worldY;
-    this.pendingNodeId = nodeId;
-    this.isMoving = true;
+  renderMobSpots() {
+    if (!this.mobsLayerEl) return;
 
-    const dx = this.targetX - this.playerX;
-    const dy = this.targetY - this.playerY;
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      this.facingDir = dx < 0 ? 'left' : 'right';
-    } else {
-      this.facingDir = dy < 0 ? 'up' : 'down';
-    }
-
-    if (this.targetMarkerEl) {
-      this.targetMarkerEl.style.left = `${worldX}px`;
-      this.targetMarkerEl.style.top = `${worldY}px`;
-      this.targetMarkerEl.classList.remove('hidden');
-    }
-
-    this.updateCameraAndPlayerDOM();
-  },
-
-  updateCameraAndPlayerDOM() {
-    if (!this.worldLayerEl || !this.playerTokenEl || !this.playerSpriteImgEl) return;
-
-    const viewW = (this.viewportEl && this.viewportEl.clientWidth) || 820;
-    const viewH = (this.viewportEl && this.viewportEl.clientHeight) || 460;
-
-    this.cameraX = window.TuTien.Utils.clamp(
-      this.playerX - viewW / 2,
-      0,
-      Math.max(0, this.WORLD_W - viewW)
-    );
-    this.cameraY = window.TuTien.Utils.clamp(
-      this.playerY - viewH / 2,
-      0,
-      Math.max(0, this.WORLD_H - viewH)
-    );
-
-    this.worldLayerEl.style.transform = `translate3d(${-Math.round(this.cameraX)}px, ${-Math.round(this.cameraY)}px, 0)`;
-
-    this.playerTokenEl.style.left = `${this.playerX.toFixed(1)}px`;
-    this.playerTokenEl.style.top = `${this.playerY.toFixed(1)}px`;
-    this.playerTokenEl.classList.toggle('walking', this.isMoving);
-
-    const spriteInfo = this.getPlayerMapSpriteInfo();
-    if (!(this.playerSpriteImgEl.getAttribute('src') || '').endsWith(spriteInfo.src)) {
-      this.playerSpriteImgEl.setAttribute('src', spriteInfo.src);
-    }
-    this.playerSpriteImgEl.style.transform = spriteInfo.flipX ? 'scaleX(-1)' : 'scaleX(1)';
-  },
-
-  onArriveAtNode(nodeObj) {
-    if (!nodeObj) return;
-    const Inv = window.TuTien.Inventory;
-    const State = window.TuTien.State;
-
-    if (nodeObj.nodeCategory === 'herb') {
-      const qObj = Inv.getQualityByTier(nodeObj.qualityTier);
-      Inv.addStackableItem(
-        'herb',
-        nodeObj.herbId,
-        nodeObj.name,
-        nodeObj.icon,
-        qObj,
-        `${nodeObj.desc} (${qObj.name} x${qObj.mult})`,
-        nodeObj.qty
-      );
-      if (window.TuTien.Audio) window.TuTien.Audio.playCraftSuccess(qObj.tier);
-      const msg = `${nodeObj.icon} Thu thập: +${nodeObj.qty} ${nodeObj.name} [${qObj.name}]!`;
-      State.addLog(msg, 'success');
-      if (window.TuTien.UI) window.TuTien.UI.showToast(msg, 'success', 'happy');
-
-      this.nodes = this.nodes.filter(n => n.id !== nodeObj.id);
-      this.renderMapNodes();
-      this.updateFogVisibilityForNodes();
-      this.renderMinimap();
-      return;
-    }
-
-    if (nodeObj.nodeCategory === 'ore') {
-      if (nodeObj.grade === 'high') {
-        Inv.addSpiritStones(0, 0, nodeObj.amount);
-      } else if (nodeObj.grade === 'mid') {
-        Inv.addSpiritStones(0, nodeObj.amount, 0);
-      } else {
-        Inv.addSpiritStones(nodeObj.amount, 0, 0);
-      }
-      if (window.TuTien.Audio) window.TuTien.Audio.playCraftSuccess(3);
-      const msg = `⛏️ Khai thác: +${nodeObj.amount} ${nodeObj.name}!`;
-      State.addLog(msg, 'success');
-      if (window.TuTien.UI) window.TuTien.UI.showToast(msg, 'success', 'happy');
-
-      this.nodes = this.nodes.filter(n => n.id !== nodeObj.id);
-      this.renderMapNodes();
-      this.updateFogVisibilityForNodes();
-      this.updateHeaderDOM();
-      this.renderMinimap();
-      return;
-    }
-
-    if (nodeObj.nodeCategory === 'merchant') {
-      this.openMerchantShop(nodeObj);
-      return;
-    }
-
-    if (nodeObj.nodeCategory === 'enemy') {
-      this.startCombat(nodeObj);
-    }
-  },
-
-  openMerchantShop(merchantNode) {
-    this.activeView = 'merchant';
-    if (this.mapViewEl) this.mapViewEl.classList.add('hidden');
-    if (this.combatViewEl) this.combatViewEl.classList.add('hidden');
-    if (this.merchantViewEl) this.merchantViewEl.classList.remove('hidden');
-    this.renderMerchantView(merchantNode);
-  },
-
-  renderMerchantView() {
-    if (!this.merchantViewEl) return;
-    const Inv = window.TuTien.Inventory;
-    const st = Inv.getSpiritStones();
-
-    const cardsHtml = this.merchantStock
-      .map(s => {
-        const canBuy = !s.sold && Inv.canAffordSpiritStonesInLow(s.costLow);
-        const priceStr = Inv.formatSpiritStoneCost(s.costLow);
-
+    this.mobsLayerEl.innerHTML = this.mobSpots
+      .map(mob => {
+        const respawnSecLeft = Math.max(1, Math.ceil(mob.respawnRemainingMs / 1000));
         return `
-          <div class="jade-card" style="border-left:3px solid ${s.qualityColor}">
-            <div class="jade-card-icon">${s.icon}</div>
-            <div class="jade-card-body">
-              <div class="item-top-meta-row">
-                <span class="equip-quality-top-tag" style="color:${s.qualityColor};border-color:${s.qualityColor}">
-                  ${s.qualityName}
-                </span>
-                <span class="jade-badge">💎 ${priceStr}</span>
-              </div>
-              <div class="jade-card-title" style="color:${s.qualityColor}">${s.name}</div>
-              <div class="jade-card-desc">${s.desc}</div>
+          <div class="newbie-mob-spot ${mob.isDead ? 'mob-respawning' : ''}"
+               data-mob-id="${mob.id}"
+               style="left:${mob.x}px;top:${mob.y}px;">
+            <div class="mob-spot-tag">
+              <div class="mob-spot-realm">${mob.realm}</div>
+              <div class="mob-spot-name">${mob.name}</div>
+              <div class="mob-spot-coord">📍 (${mob.x}, ${mob.y})</div>
             </div>
-            <button class="btn-ancient-sm btn-buy-merchant ${canBuy ? 'affordable' : ''}"
-                    data-stock-id="${s.stockId}"
-                    ${s.sold || !canBuy ? 'disabled' : ''}>
-              ${s.sold ? 'Đã Mua' : '💎 Mua'}
-            </button>
+            ${
+              mob.isDead
+                ? `<div class="mob-spot-circle"><span class="mob-respawn-timer">⏳ ${respawnSecLeft}s</span></div>`
+                : this.getCustomEntityBadgeHTML(mob)
+            }
           </div>
         `;
       })
       .join('');
 
-    this.merchantViewEl.innerHTML = `
-      <div class="combat-arena-box">
-        <div class="combat-top-banner">
-          <span>🏮 KỲ TRÂN CÁC — VÂN DU TIÊN THƯƠNG</span>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <span class="jade-badge">💎 Hạ: ${st.low} • 💠 Trung: ${st.mid} • 🌟 Thượng: ${st.high}</span>
-            <button id="btn-close-merchant" class="btn-ancient-sm affordable">🗺️ Về Bản Đồ</button>
+    this.mobsLayerEl.querySelectorAll('.newbie-mob-spot').forEach(el => {
+      el.addEventListener('pointerup', e => {
+        if (this.dragMoved) return;
+        e.stopPropagation();
+        const mobId = el.getAttribute('data-mob-id');
+        this.openMobPopup(mobId);
+      });
+    });
+  },
+
+  // ===========================================================================
+  // PHẦN 3: POPUP THÔNG TIN QUÁI & TỰ ĐỘNG THOÁT KHI THẮNG / THUA (KHÔNG BỊ KẸT)
+  // ===========================================================================
+
+  openMobPopup(mobId) {
+    const mob = this.mobSpots.find(m => m.id === mobId);
+    if (!mob || !this.popupOverlayEl) return;
+
+    if (mob.isDead) {
+      const sec = Math.max(1, Math.ceil(mob.respawnRemainingMs / 1000));
+      if (window.TuTien.UI) {
+        window.TuTien.UI.showToast(`⏳ Đối thủ sẽ hồi sinh ở tọa độ ngẫu nhiên mới sau ${sec} giây!`, 'info');
+      }
+      return;
+    }
+
+    this.selectedMobId = mob.id;
+    this.combatRunning = false;
+
+    const Utils = window.TuTien.Utils;
+    const typeTitle = mob.entityType === 'cultivator' ? 'Tán Tu Giao Đấu' : 'Yêu Thú Hoang Dã';
+
+    // TUYỆT ĐỐI KHÔNG HIỂN THỊ DANH SÁCH VẬT PHẨM RƠI RA TRÊN BẢNG THÔNG TIN NÀY
+    this.popupOverlayEl.innerHTML = `
+      <div class="newbie-modal-box">
+        <div class="newbie-modal-header">
+          <div style="display:flex;align-items:center;gap:12px;">
+            ${this.getCustomEntityBadgeHTML(mob)}
+            <div>
+              <span style="font-size:0.72rem;color:var(--ivory-muted);">${typeTitle} • Tọa độ ngẫu nhiên</span>
+              <h3>${mob.name}</h3>
+            </div>
+          </div>
+          <button id="btn-close-mob-popup" class="jade-drawer-close">✕</button>
+        </div>
+
+        <div class="newbie-mob-stats-grid">
+          <div class="nms-item">
+            <span class="nms-label">📍 Tọa độ hiện tại</span>
+            <strong>(${mob.x}, ${mob.y})</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">☯️ Tu vi (Cảnh giới)</span>
+            <strong style="color:var(--bronze-light)">${mob.realm}</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">❤️ HP (Máu)</span>
+            <strong id="popup-mob-hp" style="color:#f87171">${Utils.formatNumber(mob.currentHp)} / ${Utils.formatNumber(mob.maxHp)}</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">💧 Linh lực</span>
+            <strong style="color:#60a5fa">${Utils.formatNumber(mob.currentMp)} / ${Utils.formatNumber(mob.maxMp)}</strong>
           </div>
         </div>
-        <div class="jade-cards-stack">
-          ${cardsHtml}
+
+        <div id="newbie-combat-log" class="newbie-combat-log">
+          <div class="ncl-hint">Nhấn "⚔️ Tấn Công" để xuất chiêu. Sau khi phân thắng bại sẽ tự động thoát ra bản đồ và báo chiến lợi phẩm!</div>
+        </div>
+
+        <div class="newbie-modal-actions">
+          <button id="btn-attack-mob" class="btn-ancient-wide ready">
+            ⚔️ Tấn Công
+          </button>
         </div>
       </div>
     `;
 
-    const closeBtn = document.getElementById('btn-close-merchant');
+    this.popupOverlayEl.classList.remove('hidden');
+
+    const closeBtn = document.getElementById('btn-close-mob-popup');
     if (closeBtn) {
       closeBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
-        this.activeView = 'map';
-        if (this.merchantViewEl) this.merchantViewEl.classList.add('hidden');
-        if (this.mapViewEl) this.mapViewEl.classList.remove('hidden');
+        this.popupOverlayEl.classList.add('hidden');
       });
     }
 
-    this.merchantViewEl.querySelectorAll('.btn-buy-merchant').forEach(btn => {
-      btn.addEventListener('pointerdown', e => {
+    const atkBtn = document.getElementById('btn-attack-mob');
+    if (atkBtn) {
+      atkBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
-        this.buyMerchantItem(btn.getAttribute('data-stock-id'));
+        this.runCombatSimulation(mob);
       });
-    });
-  },
-
-  update(dtMs) {
-    this.refreshRemainingMs -= dtMs;
-    if (this.refreshRemainingMs <= 0) {
-      this.generateSecretRealm(false);
-      if (this.isOpen && this.activeView === 'map') {
-        this.drawProceduralTerrainCanvas();
-        this.renderMapNodes();
-        this.updateFogVisibilityForNodes();
-        this.renderMinimap();
-      }
-      if (window.TuTien.UI) {
-        window.TuTien.UI.showToast('🌪️ Thiên địa biến chuyển: Bí Cảnh Hồng Hoang đã làm mới!', 'info');
-      }
-    }
-
-    if (!this.isOpen) return;
-    const dtSec = dtMs / 1000;
-
-    this.updateHeaderDOM();
-
-    if (this.isMoving && this.activeView === 'map') {
-      const dx = this.targetX - this.playerX;
-      const dy = this.targetY - this.playerY;
-      const dist = Math.hypot(dx, dy);
-      const moveSpeedPxPerSec = 320;
-
-      if (Math.abs(dx) > Math.abs(dy)) {
-        this.facingDir = dx < 0 ? 'left' : 'right';
-      } else {
-        this.facingDir = dy < 0 ? 'up' : 'down';
-      }
-
-      // Chu kỳ 4 frame di chuyển (01 -> 02 -> 03 -> 04)
-      this.walkAnimTimerMs += dtMs;
-      if (this.walkAnimTimerMs >= 165) {
-        this.walkAnimTimerMs = 0;
-        this.walkFrame = (this.walkFrame + 1) % 4;
-      }
-
-      if (dist <= moveSpeedPxPerSec * dtSec) {
-        this.playerX = this.targetX;
-        this.playerY = this.targetY;
-        this.isMoving = false;
-        this.walkFrame = 0;
-        if (this.targetMarkerEl) this.targetMarkerEl.classList.add('hidden');
-        this.revealFogAtPlayer();
-        this.updateCameraAndPlayerDOM();
-
-        if (this.pendingNodeId) {
-          const targetNode = this.nodes.find(x => x.id === this.pendingNodeId);
-          this.pendingNodeId = null;
-          if (targetNode) {
-            this.onArriveAtNode(targetNode);
-          }
-        }
-      } else {
-        this.playerX += (dx / dist) * moveSpeedPxPerSec * dtSec;
-        this.playerY += (dy / dist) * moveSpeedPxPerSec * dtSec;
-        this.revealFogAtPlayer();
-        this.updateCameraAndPlayerDOM();
-      }
-    }
-
-    if (this.inCombat && this.autoBattle && this.combatState && !this.combatState.finished) {
-      this.autoBattleTimerMs += dtMs;
-      if (this.autoBattleTimerMs >= 850) {
-        this.autoBattleTimerMs = 0;
-        if (this.combatState.playerMp >= 30) {
-          this.executePlayerCombatAction('skill');
-        } else {
-          this.executePlayerCombatAction('attack');
-        }
-      }
     }
   },
 
-  startCombat(enemy) {
-    if (this.combatExitTimeout) {
-      clearTimeout(this.combatExitTimeout);
-      this.combatExitTimeout = null;
-    }
-    const pStats = window.TuTien.Character.getCombatStats();
-    const playerFirst = pStats.speed >= enemy.speed;
+  runCombatSimulation(mob) {
+    if (this.combatRunning || mob.isDead) return;
+    this.combatRunning = true;
 
-    this.inCombat = true;
-    this.activeView = 'combat';
-    this.autoBattle = false;
-    this.combatState = {
-      enemy: { ...enemy, currentHp: enemy.maxHp, currentMp: enemy.maxMp },
-      playerHp: pStats.maxHp,
-      playerMaxHp: pStats.maxHp,
-      playerMp: pStats.maxMp,
-      playerMaxMp: pStats.maxMp,
-      playerSpeed: pStats.speed,
-      playerAttack: pStats.attack,
-      playerPose: 'idle',
-      enemyPose: 'idle',
-      turnNumber: 1,
-      playerFirst,
-      finished: false,
-      logs: [`Chạm trán 【${enemy.name}】 (${enemy.realmName})! Hãy chọn chiêu thức xuất kích.`]
+    try {
+      const Utils = window.TuTien.Utils;
+      const pStats = this.getPlayerStats();
+
+      if (this.playerCurrentHp <= 0) {
+        this.playerCurrentHp = pStats.maxHp;
+      }
+
+      let round = 1;
+      let mobHp = mob.currentHp;
+      let playerHp = this.playerCurrentHp;
+
+      const scaleBonus = 1 + (mob.realmLevel - 1) * 0.15;
+      const effectivePlayerAtk = Math.max(8, pStats.attack);
+
+      while (mobHp > 0 && playerHp > 0 && round <= 15) {
+        const pDmg = Math.max(1, Math.round(effectivePlayerAtk * (0.9 + Math.random() * 0.25)));
+        mobHp = Math.max(0, mobHp - pDmg);
+        if (mobHp <= 0) break;
+
+        const mDmg = Math.max(1, Math.round(mob.attack * scaleBonus * (0.85 + Math.random() * 0.25)));
+        playerHp = Math.max(0, playerHp - mDmg);
+        round += 1;
+      }
+
+      this.playerCurrentHp = Math.max(1, playerHp);
+      this.playerCurrentMp = Math.max(0, this.playerCurrentMp - Math.min(this.playerCurrentMp, 10));
+
+      if (mobHp <= 0) {
+        mob.currentHp = 0;
+        const droppedItems = this.rollHiddenDropsAndAddToBag(mob);
+        const dropPlain = droppedItems.map(d => `${d.icon} ${d.name} [${d.tierName}] ×${d.qty}`).join(', ');
+        const dropHtml = droppedItems
+          .map(d => `<strong style="color:${d.color}">${d.icon} ${d.name} [${d.tierName}] ×${d.qty}</strong>`)
+          .join(', ');
+
+        const stoneGain = mob.realmLevel * 5;
+        if (window.TuTien.Inventory && typeof window.TuTien.Inventory.addSpiritStones === 'function') {
+          window.TuTien.Inventory.addSpiritStones(stoneGain);
+        }
+
+        mob.isDead = true;
+        mob.respawnRemainingMs = mob.respawnSec * 1000;
+
+        // Tự động thoát Popup ngay khi đánh bại quái và thông báo rõ nhận được những gì
+        if (this.popupOverlayEl) {
+          this.popupOverlayEl.classList.add('hidden');
+        }
+
+        this.lastLootBannerHtml = `🏆 <strong>Hạ gục ${mob.name}!</strong> Nhận: <strong style="color:#38bdf8">+${stoneGain} Linh Thạch</strong>, ${dropHtml} <em>(Hồi sinh vị trí mới sau 5s)</em>`;
+        if (this.anomalyBannerEl && !this.secretRealm) {
+          this.anomalyBannerEl.innerHTML = this.lastLootBannerHtml;
+        }
+
+        if (window.TuTien.UI) {
+          window.TuTien.UI.showToast(`🏆 Hạ ${mob.name}: +${stoneGain} Linh Thạch, ${dropPlain}!`, 'success');
+        }
+      } else {
+        mob.currentHp = mobHp;
+        // Khi thua/chưa hạ được cũng tự động thoát ra bản đồ và thông báo
+        if (this.popupOverlayEl) {
+          this.popupOverlayEl.classList.add('hidden');
+        }
+        const failMsg = `⚠️ Giao chiến bất phân thắng bại với ${mob.name} (còn ${Utils.formatNumber(mobHp)} HP)! Đã tự rút lui về bản đồ.`;
+        this.lastLootBannerHtml = failMsg;
+        if (this.anomalyBannerEl && !this.secretRealm) {
+          this.anomalyBannerEl.innerHTML = failMsg;
+        }
+        if (window.TuTien.UI) {
+          window.TuTien.UI.showToast(failMsg, 'warn');
+        }
+      }
+
+      this.renderMobSpots();
+      this.updateStatusBar();
+    } catch (err) {
+      console.error('Lỗi mô phỏng chiến đấu Xuất Quan:', err);
+      if (this.popupOverlayEl) {
+        this.popupOverlayEl.classList.add('hidden');
+      }
+    } finally {
+      this.combatRunning = false;
+    }
+  },
+
+  rollHiddenDropsAndAddToBag(mob) {
+    const results = [];
+    const Inv = window.TuTien.Inventory;
+    const qualities = window.TuTien.ITEM_QUALITIES || [];
+
+    const pickDropQuality = maxTier => {
+      const cap = Math.max(1, Math.min(5, maxTier || 2));
+      const allowed = qualities.filter(q => q.tier <= cap);
+      if (!allowed.length) {
+        return { tier: 1, name: 'Hạ Phẩm', color: '#94a3b8', mult: 1 };
+      }
+      const weights = allowed.map(q => Math.pow(0.45, q.tier - 1));
+      const total = weights.reduce((s, w) => s + w, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < allowed.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return allowed[i];
+      }
+      return allowed[0];
     };
 
-    if (window.TuTien.Audio) {
-      window.TuTien.Audio.switchToCombatBgm(enemy.isOverlevel);
+    const addDropToInventory = (drop, qObj, qty) => {
+      if (!Inv) return;
+      if (typeof Inv.addStackableItem === 'function') {
+        Inv.addStackableItem(
+          drop.category,
+          drop.id,
+          drop.name,
+          drop.icon,
+          qObj,
+          `${drop.typeLabel} thu thập khi đánh bại ${mob.name}. Dùng để Luyện Đan hoặc Rèn Pháp Bảo.`,
+          qty
+        );
+      }
+    };
+
+    (mob.hiddenDrops || []).forEach(drop => {
+      if (Math.random() <= drop.chance) {
+        const qty = drop.minQty + Math.floor(Math.random() * (drop.maxQty - drop.minQty + 1));
+        const qObj = pickDropQuality(drop.maxTier);
+        addDropToInventory(drop, qObj, qty);
+
+        results.push({
+          name: drop.name,
+          icon: drop.icon,
+          qty,
+          tierName: qObj.name,
+          color: qObj.color
+        });
+      }
+    });
+
+    if (results.length === 0 && mob.hiddenDrops && mob.hiddenDrops.length > 0) {
+      const firstDrop = mob.hiddenDrops[0];
+      const qObj = pickDropQuality(1);
+      addDropToInventory(firstDrop, qObj, 1);
+      results.push({
+        name: firstDrop.name,
+        icon: firstDrop.icon,
+        qty: 1,
+        tierName: qObj.name,
+        color: qObj.color
+      });
     }
 
-    if (!playerFirst) {
-      this.performEnemyTurn();
+    return results;
+  },
+
+  // ===========================================================================
+  // PHẦN 4: HỆ THỐNG BÍ CẢNH NGẪU NHIÊN CHIA 5 CẤP ĐỘ & POPUP BÍ CẢNH PHÓNG TO
+  // ===========================================================================
+
+  scheduleNextSecretRealm() {
+    this.nextSecretSpawnMs = (15 + Math.floor(Math.random() * 6)) * 1000;
+  },
+
+  spawnRandomSecretRealm() {
+    const tierCfg = this.rollSecretRealmTier();
+    const chosenName = tierCfg.names[Math.floor(Math.random() * tierCfg.names.length)];
+    const coord = this.generateRandomCoord(this.mobSpots, tierCfg.tier * 2);
+
+    this.secretRealm = {
+      ...tierCfg,
+      name: chosenName,
+      x: coord.x,
+      y: coord.y,
+      remainingMs: 30000
+    };
+
+    const bannerMsg = `⚡ Dị tượng xuất hiện: 【${chosenName} — ${tierCfg.rankLabel}】 vừa mở trên bản đồ (30s)! Bấm nút Bí Cảnh trên thanh công cụ hoặc tìm trên bản đồ!`;
+
+    if (this.anomalyBannerEl) {
+      this.anomalyBannerEl.innerHTML = bannerMsg;
+      this.anomalyBannerEl.classList.add('anomaly-active');
+    }
+    if (this.isOpen && window.TuTien.UI) {
+      window.TuTien.UI.showToast(`⚡ Có dị tượng 【${tierCfg.rankLabel}】 xuất hiện trên bản đồ!`, 'warn');
     }
 
-    if (this.mapViewEl) this.mapViewEl.classList.add('hidden');
-    if (this.merchantViewEl) this.merchantViewEl.classList.add('hidden');
-    if (this.combatViewEl) this.combatViewEl.classList.remove('hidden');
-    this.renderCombatView();
+    this.renderSecretRealmSpot();
+    this.updateStatusBar();
+  },
+
+  renderSecretRealmSpot() {
+    if (!this.secretLayerEl) return;
+
+    if (!this.secretRealm) {
+      this.secretLayerEl.innerHTML = '';
+      return;
+    }
+
+    const sr = this.secretRealm;
+    const secLeft = Math.max(1, Math.ceil(sr.remainingMs / 1000));
+    this.secretLayerEl.innerHTML = `
+      <div class="newbie-secret-spot" style="left:${sr.x}px;top:${sr.y}px;">
+        <div class="secret-spot-tag" style="background:${sr.bgGradient};border-color:${sr.color};">
+          <div class="secret-spot-title" style="color:${sr.color};">🌀 ${sr.name}</div>
+          <div class="secret-spot-meta" style="color:#fef08a;">★ ${sr.rankLabel} • 📍 (${sr.x}, ${sr.y}) • ⏳ ${secLeft}s</div>
+        </div>
+        <div class="xianxia-token secret-token">
+          <svg class="token-frame-svg" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="29" fill="rgba(24, 14, 8, 0.94)" stroke="${sr.color}" stroke-width="2.4" />
+            <circle cx="32" cy="32" r="22" fill="none" stroke="#fef08a" stroke-width="1.5" stroke-dasharray="5 3" />
+            <path d="M32 11 C44 16, 48 32, 32 53 C16 32, 20 16, 32 11 Z" fill="${sr.color}" opacity="0.32" />
+            <polygon points="32,16 44,32 32,48 20,32" fill="${sr.color}" stroke="#ffffff" stroke-width="1.3" />
+          </svg>
+          <span class="token-type-pill" style="border-color:${sr.color};color:#fef08a;">Bí Cảnh Cấp ${sr.tier}</span>
+        </div>
+      </div>
+    `;
+
+    const spotEl = this.secretLayerEl.querySelector('.newbie-secret-spot');
+    if (spotEl) {
+      spotEl.addEventListener('pointerup', e => {
+        if (this.dragMoved) return;
+        e.stopPropagation();
+        this.openSecretRealmPopup();
+      });
+    }
   },
 
   /**
-   * MÀN HÌNH CHIẾN ĐẤU LINH ĐÀI TU TIÊN THOÁNG ĐÃNG:
-   * - Chính giữa phía trên: Lệnh bài "❖ HIỆP X ❖".
-   * - BÊN TRÁI (Phe Ta): Thanh Máu & Linh Lực của mình nằm ngay TRÊN ĐẦU nhân vật của mình (`player-plate` ở trên, `player-spot` ở dưới).
-   * - BÊN PHẢI (Phe Địch): Kẻ địch đứng trên bệ Linh Trận phía trên (`enemy-spot`), Thanh Máu của địch nằm ngay DƯỚI CHÂN địch (`enemy-plate`).
-   * - Dưới đáy: Khung Ngọc Giản diễn biến 1 câu + Lưới 2×2 Phù Ấn chiêu thức.
+   * Giao diện mở Bí Cảnh được PHÓNG TO RỘNG RÃI (secret-modal-xl), hiển thị trực quan Cấp độ, Kỳ Ngộ và 2 phương thức Khám Phá
    */
-  renderCombatView() {
-    if (!this.combatViewEl || !this.combatState) return;
+  openSecretRealmPopup() {
+    if (!this.secretRealm || !this.popupOverlayEl) return;
+    const sr = this.secretRealm;
+    const secLeft = Math.max(1, Math.ceil(sr.remainingMs / 1000));
     const Utils = window.TuTien.Utils;
-    const cs = this.combatState;
-    const en = cs.enemy;
-    const gender = window.TuTien.Character.getGender();
-    const factionCfg = window.TuTien.Character.getFactionConfig();
-    const skillName =
-      factionCfg.id === 'ma_dao'
-        ? '🩸 Huyết Ma Thôn Hồn'
-        : '⚔️ Thái Thanh Kiếm Quyết';
 
-    const pHpPct = Utils.clamp((cs.playerHp / cs.playerMaxHp) * 100, 0, 100);
-    const pMpPct = Utils.clamp((cs.playerMp / cs.playerMaxMp) * 100, 0, 100);
-    const eHpPct = Utils.clamp((en.currentHp / en.maxHp) * 100, 0, 100);
-
-    const playerSpriteSrc = this.getCombatPoseSprite(gender, cs.playerPose);
-    const playerAttackClass =
-      cs.playerPose === 'attack'
-        ? 'player-lunge-right'
-        : cs.playerPose === 'skill'
-        ? 'player-cast-glow'
-        : '';
-
-    const enemyVisualHtml =
-      en.type === 'cultivator'
-        ? `<img src="${this.getCombatPoseSprite(en.gender || 'male', cs.enemyPose)}" class="poke-fighter-sprite enemy-flip" alt="${en.name}" />`
-        : `<div class="poke-monster-sprite ${cs.enemyPose === 'hurt' ? 'hurt-shake' : cs.enemyPose === 'down' ? 'monster-defeated' : ''}">${en.icon}</div>`;
-
-    const latestMessage = cs.logs[0] || `Đang giao chiến với ${en.name}...`;
-
-    this.combatViewEl.innerHTML = `
-      <div class="poke-battle-container">
-        <!-- SÂN ĐẤU LINH ĐÀI ĐẤU PHÁP -->
-        <div class="poke-battle-scene">
-          <!-- Lệnh bài HIỆP nằm chính giữa phía trên màn hình trận đấu -->
-          <div class="poke-turn-center-badge">❖ HIỆP ${cs.turnNumber} ❖</div>
-
-          <!-- Nút Tự Động góc phải trên sân đấu -->
-          <button id="btn-cb-auto" class="poke-auto-pill ${this.autoBattle ? 'active' : ''}" ${cs.finished ? 'disabled' : ''}>
-            ⚡ Tự Động: ${this.autoBattle ? 'Bật' : 'Tắt'}
-          </button>
-
-          <!-- HAI CỘT ĐỐI KHÁNG: BÊN TRÁI (MÁU MÌNH TRÊN ĐẦU MÌNH) — BÊN PHẢI (MÁU ĐỊCH DƯỚI CHÂN ĐỊCH) -->
-          <div class="poke-duel-columns">
-            <!-- CỘT TRÁI: PHE TA (Thanh Máu & Linh Lực của mình ở ngay trên đầu nhân vật mình) -->
-            <div class="poke-duel-col player-col">
-              <div class="poke-status-plate player-plate">
-                <div class="poke-plate-header">
-                  <span class="poke-fighter-name">${window.TuTien.State.data.character.daoName}</span>
-                  <span class="poke-fighter-realm" style="color:${factionCfg.color}">${factionCfg.icon} ${factionCfg.name}</span>
-                </div>
-                <div class="poke-hp-track">
-                  <div class="poke-hp-fill" style="width:${pHpPct.toFixed(1)}%"></div>
-                </div>
-                <div class="poke-hp-numbers">❤️ ${Utils.formatNumber(cs.playerHp)} / ${Utils.formatNumber(cs.playerMaxHp)}</div>
-
-                <div class="poke-mp-track">
-                  <div class="poke-mp-fill" style="width:${pMpPct.toFixed(1)}%"></div>
-                </div>
-                <div class="poke-hp-numbers">💧 ${Utils.formatNumber(cs.playerMp)} / ${Utils.formatNumber(cs.playerMaxMp)}</div>
-              </div>
-
-              <div class="poke-platform-spot player-spot">
-                <div class="poke-Actor-wrap">
-                  <img src="${playerSpriteSrc}" class="poke-fighter-sprite ${playerAttackClass}" alt="Tu sĩ" />
-                </div>
-                <div class="poke-ground-pad player-pad"></div>
-              </div>
+    this.popupOverlayEl.innerHTML = `
+      <div class="newbie-modal-box secret-modal-xl" style="border-color:${sr.color};">
+        <div class="newbie-modal-header" style="background:${sr.bgGradient};margin:-20px -20px 16px -20px;padding:16px 22px;border-radius:16px 16px 0 0;border-bottom:1.5px solid ${sr.color};">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="xianxia-token" style="transform:scale(1.12);">
+              <svg class="token-frame-svg" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="29" fill="rgba(24, 14, 8, 0.94)" stroke="${sr.color}" stroke-width="2.4" />
+                <circle cx="32" cy="32" r="22" fill="none" stroke="#fef08a" stroke-width="1.5" stroke-dasharray="5 3" />
+                <polygon points="32,14 46,32 32,50 18,32" fill="${sr.color}" stroke="#ffffff" stroke-width="1.5" />
+              </svg>
             </div>
-
-            <!-- CỘT PHẢI: PHE ĐỊCH (Kẻ địch đứng trên bệ phía trên, Thanh Máu của địch nằm ngay dưới chân địch) -->
-            <div class="poke-duel-col enemy-col">
-              <div class="poke-platform-spot enemy-spot">
-                <div class="poke-Actor-wrap">
-                  ${enemyVisualHtml}
-                </div>
-                <div class="poke-ground-pad enemy-pad"></div>
-              </div>
-
-              <div class="poke-status-plate enemy-plate">
-                <div class="poke-plate-header">
-                  <span class="poke-fighter-name">${en.name}</span>
-                  <span class="poke-fighter-realm">${en.realmName}</span>
-                </div>
-                <div class="poke-hp-track">
-                  <div class="poke-hp-fill enemy-hp" style="width:${eHpPct.toFixed(1)}%"></div>
-                </div>
-                <div class="poke-hp-numbers">❤️ ${Utils.formatNumber(en.currentHp)} / ${Utils.formatNumber(en.maxHp)}</div>
-              </div>
+            <div>
+              <div style="font-size:0.86rem;color:#fef08a;font-weight:700;letter-spacing:0.4px;">★ BÍ CẢNH PHÂN CẤP: ${sr.rankLabel.toUpperCase()}</div>
+              <h3 style="font-size:1.45rem;color:#ffffff;margin-top:2px;">🌀 ${sr.name}</h3>
             </div>
+          </div>
+          <button id="btn-close-secret-popup" class="jade-drawer-close">✕</button>
+        </div>
+
+        <div class="newbie-mob-stats-grid" style="grid-template-columns:repeat(4, 1fr);gap:10px;margin-bottom:16px;">
+          <div class="nms-item">
+            <span class="nms-label">📍 Tọa độ Bí Cảnh</span>
+            <strong style="font-size:1rem;">(${sr.x}, ${sr.y})</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">⏳ Thời gian còn lại</span>
+            <strong id="modal-secret-countdown" style="color:#fde047;font-size:1rem;">${secLeft} giây</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">☯️ Cảnh giới khuyến nghị</span>
+            <strong style="color:${sr.color};font-size:0.95rem;">${sr.recommendRealm}</strong>
+          </div>
+          <div class="nms-item">
+            <span class="nms-label">🛡️ Hộ Pháp Trấn Giữ</span>
+            <strong style="color:#f87171;font-size:0.95rem;">${sr.guardianName} (${Utils.formatNumber(sr.guardianHp)} HP)</strong>
           </div>
         </div>
 
-        <!-- KHUNG NGỌC GIẢN DIỄN BIẾN + BẢNG 4 PHÙ ẤN CHIÊU THỨC 2×2 -->
-        <div class="poke-bottom-dock">
-          <div class="poke-dialog-box">
-            <p>${latestMessage}</p>
+        <div class="secret-choice-grid">
+          <div class="secret-choice-card safe-card">
+            <div class="scc-title">✨ Phương Thức 1: Thám Hiểm Ngoại Vi (An Toàn)</div>
+            <p class="scc-desc">Thu thập linh khoáng và kỳ trân dị bảo ở vòng ngoài Bí Cảnh mà không kinh động đến Hộ Pháp. Tỉ lệ thành công <strong>100%</strong>.</p>
+            <div class="scc-rewards">
+              <span>💎 +${sr.stoneReward[0]}–${sr.stoneReward[1]} Linh Thạch</span>
+              <span>⛏️ +${sr.matQty[0]}–${sr.matQty[1]} Sắt/Đá/Gỗ</span>
+              <span>🌕 Cơ hội rơi Vàng (${Math.round(sr.goldChance * 100)}%)</span>
+            </div>
+            <button id="btn-explore-secret-safe" class="btn-ancient-wide ready" style="margin-top:auto;">
+              ✨ Thám Hiểm An Toàn (Nhận Thưởng Ngay)
+            </button>
           </div>
 
-          <div class="poke-action-grid">
-            <button id="btn-cb-attack" class="poke-move-btn move-attack" ${cs.finished ? 'disabled' : ''}>
-              <strong>⚔️ Phổ Công</strong>
-              <small>+15 Linh Lực</small>
-            </button>
-            <button id="btn-cb-skill" class="poke-move-btn move-skill" ${cs.playerMp < 30 || cs.finished ? 'disabled' : ''}>
-              <strong>${skillName}</strong>
-              <small>30 Linh Lực</small>
-            </button>
-            <button id="btn-cb-guard" class="poke-move-btn move-guard" ${cs.playerMp < 20 || cs.finished ? 'disabled' : ''}>
-              <strong>🛡️ Hộ Thể</strong>
-              <small>20 Linh Lực</small>
-            </button>
-            <button id="btn-cb-leave" class="poke-move-btn move-run">
-              <strong>🏳️ Rút Lui</strong>
-              <small>Về Bản Đồ</small>
+          <div class="secret-choice-card boss-card">
+            <div class="scc-title" style="color:#fca5a5;">⚔️ Phương Thức 2: Phá Trận Đoạt Bảo (Thưởng x2)</div>
+            <p class="scc-desc">Trực tiếp đánh bại <strong>${sr.guardianName}</strong> trấn giữ lõi Bí Cảnh để đoạt toàn bộ bảo khố với phần thưởng <strong>GẤP ĐÔI (x2)</strong>!</p>
+            <div class="scc-rewards">
+              <span style="color:#fde047;">💎 x2 Linh Thạch (${sr.stoneReward[0] * 2}–${sr.stoneReward[1] * 2})</span>
+              <span style="color:#86efac;">⛏️ x2 Khoáng Sản & Vàng</span>
+              <span style="color:#38bdf8;">✨ x2 Tu Vi Trực Tiếp</span>
+            </div>
+            <button id="btn-explore-secret-boss" class="btn-ancient-wide ready ma-btn" style="margin-top:auto;">
+              ⚔️ Khiêu Chiến Hộ Pháp (Đoạt Thưởng x2)
             </button>
           </div>
         </div>
       </div>
     `;
 
-    const bindBtn = (id, fn) => {
-      const b = document.getElementById(id);
-      if (b) {
-        b.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          fn();
-        });
-      }
-    };
+    this.popupOverlayEl.classList.remove('hidden');
 
-    bindBtn('btn-cb-attack', () => this.executePlayerCombatAction('attack'));
-    bindBtn('btn-cb-skill', () => this.executePlayerCombatAction('skill'));
-    bindBtn('btn-cb-guard', () => this.executePlayerCombatAction('guard'));
-    bindBtn('btn-cb-auto', () => {
-      this.autoBattle = !this.autoBattle;
-      this.renderCombatView();
-    });
-    bindBtn('btn-cb-leave', () => this.exitCombatToMap());
-  },
-
-  executePlayerCombatAction(actionType) {
-    const cs = this.combatState;
-    if (!cs || cs.finished) return;
-
-    const Utils = window.TuTien.Utils;
-    const en = cs.enemy;
-    const factionId = window.TuTien.Character.getFactionId();
-    let dmg = 0;
-    let guardMultiplier = 1.0;
-
-    if (actionType === 'attack') {
-      dmg = Math.round(cs.playerAttack * Utils.randomRange(0.92, 1.12));
-      cs.playerMp = Math.min(cs.playerMaxMp, cs.playerMp + 15);
-      cs.playerPose = 'attack';
-      cs.enemyPose = 'hurt';
-      en.currentHp = Math.max(0, en.currentHp - dmg);
-      cs.logs.unshift(`⚔️ Xuất kiếm chém trúng ${en.name}, gây -${Utils.formatNumber(dmg)} sát thương!`);
-    } else if (actionType === 'skill' && cs.playerMp >= 30) {
-      cs.playerMp -= 30;
-      cs.playerPose = 'skill';
-      cs.enemyPose = 'hurt';
-      if (factionId === 'ma_dao') {
-        dmg = Math.round(cs.playerAttack * 2.45 * Utils.randomRange(0.95, 1.1));
-        const lifesteal = Math.round(dmg * 0.25);
-        en.currentHp = Math.max(0, en.currentHp - dmg);
-        cs.playerHp = Math.min(cs.playerMaxHp, cs.playerHp + lifesteal);
-        cs.logs.unshift(
-          `🩸 【Huyết Ma Thôn Hồn】 gây -${Utils.formatNumber(dmg)} sát thương, hút +${Utils.formatNumber(lifesteal)} Máu!`
-        );
-      } else {
-        dmg = Math.round(cs.playerAttack * 2.25 * Utils.randomRange(0.95, 1.1));
-        const heal = Math.round(cs.playerMaxHp * 0.15);
-        en.currentHp = Math.max(0, en.currentHp - dmg);
-        cs.playerHp = Math.min(cs.playerMaxHp, cs.playerHp + heal);
-        cs.logs.unshift(
-          `⚔️ 【Thái Thanh Kiếm Quyết】 gây -${Utils.formatNumber(dmg)} sát thương, hồi +${Utils.formatNumber(heal)} Máu!`
-        );
-      }
-    } else if (actionType === 'guard' && cs.playerMp >= 20) {
-      cs.playerMp -= 20;
-      cs.playerPose = 'meditate';
-      guardMultiplier = 0.4;
-      const heal = Math.round(cs.playerMaxHp * 0.22);
-      cs.playerHp = Math.min(cs.playerMaxHp, cs.playerHp + heal);
-      cs.logs.unshift(`🛡️ Vận Hộ Thể Linh Thuẫn: hồi +${Utils.formatNumber(heal)} Máu, giảm 60% sát thương!`);
-    } else {
-      return;
+    const closeBtn = document.getElementById('btn-close-secret-popup');
+    if (closeBtn) {
+      closeBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.popupOverlayEl.classList.add('hidden');
+      });
     }
 
-    if (en.currentHp <= 0) {
-      cs.enemyPose = 'down';
-      cs.finished = true;
-      this.onWinCombat(en);
-      this.renderCombatView();
-      this.scheduleAutoExitCombat();
-      return;
+    const safeBtn = document.getElementById('btn-explore-secret-safe');
+    if (safeBtn) {
+      safeBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.claimSecretRealmReward(false);
+      });
     }
 
-    this.performEnemyTurn(guardMultiplier);
-    cs.turnNumber += 1;
-    this.renderCombatView();
-  },
-
-  performEnemyTurn(guardMultiplier = 1.0) {
-    const cs = this.combatState;
-    if (!cs || cs.finished) return;
-    const Utils = window.TuTien.Utils;
-    const en = cs.enemy;
-
-    const rawDmg = en.attack * Utils.randomRange(0.88, 1.15) * guardMultiplier;
-    const dmg = Math.max(1, Math.round(rawDmg));
-    cs.playerHp = Math.max(0, cs.playerHp - dmg);
-
-    cs.logs.unshift(`💥 ${en.name} phản kích, bạn mất -${Utils.formatNumber(dmg)} Máu!`);
-
-    if (cs.playerHp <= 0) {
-      cs.playerPose = 'down';
-      cs.finished = true;
-      const loseMsg = `⚠️ Trọng thương trước ${en.name}! Tự động thu thân về Bí Cảnh Hồng Hoang...`;
-      cs.logs.unshift(loseMsg);
-      window.TuTien.State.addLog(`Trọng thương khi giao chiến với 【${en.name}】 tại Bí Cảnh Hồng Hoang.`, 'warn');
-      if (window.TuTien.UI) {
-        window.TuTien.UI.showToast(loseMsg, 'warn', 'angry');
-      }
-      this.scheduleAutoExitCombat();
+    const bossBtn = document.getElementById('btn-explore-secret-boss');
+    if (bossBtn) {
+      bossBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.claimSecretRealmReward(true);
+      });
     }
   },
 
-  scheduleAutoExitCombat() {
-    if (this.combatExitTimeout) {
-      clearTimeout(this.combatExitTimeout);
-    }
-    this.combatExitTimeout = setTimeout(() => {
-      this.combatExitTimeout = null;
-      if (this.inCombat) {
-        this.exitCombatToMap();
-      }
-    }, 850);
-  },
-
-  onWinCombat(enemy) {
+  claimSecretRealmReward(challengeGuardian) {
+    if (!this.secretRealm) return;
+    const sr = this.secretRealm;
+    const Inv = window.TuTien.Inventory;
     const State = window.TuTien.State;
     const Utils = window.TuTien.Utils;
-    const Inv = window.TuTien.Inventory;
-    const Upgrades = window.TuTien.Upgrades;
-    const Fields = window.TuTien.Fields;
 
-    const baseProd = window.TuTien.Cultivate.getBasePassiveRate();
-    const powerFactor = enemy.statScale || 1.0;
-    const rewardQi = Math.max(
-      80,
-      Math.round((baseProd * 28 + (enemy.realmIndex + 1) * 95) * powerFactor * (enemy.isOverlevel ? 2.2 : 1.0))
-    );
+    let mult = 1;
+    if (challengeGuardian) {
+      const pStats = this.getPlayerStats();
+      const playerPower = pStats.attack * 6 + this.playerCurrentHp;
+      const guardianPower = sr.guardianAtk * 5 + sr.guardianHp;
 
-    window.TuTien.Cultivate.addQi(rewardQi);
-    const lootMessages = [`+${Utils.formatNumber(rewardQi)} Linh Khí`];
-
-    const lowStones = Math.round(Utils.randomInt(12, 35) * powerFactor * (enemy.isOverlevel ? 2.5 : 1));
-    Inv.addSpiritStones(lowStones, 0, 0);
-    lootMessages.push(`+${Inv.formatSpiritStoneCost(lowStones)}`);
-
-    if (enemy.type === 'cultivator') {
-      State.data.stats.roguesDefeated = (State.data.stats.roguesDefeated || 0) + 1;
-    } else {
-      State.data.stats.monstersDefeated = (State.data.stats.monstersDefeated || 0) + 1;
-    }
-
-    const herbChance = enemy.isOverlevel ? 0.95 : 0.65;
-    if (Math.random() < herbChance) {
-      const minTier = enemy.isOverlevel ? 3 : 2;
-      const maxTier = enemy.isOverlevel ? 5 : 4;
-      const qObj = Inv.getQualityByTier(Utils.randomInt(minTier, maxTier));
-      const allHerbs = window.TuTien.HERB_TYPES;
-      const pickedHerb = allHerbs[Math.floor(Math.random() * allHerbs.length)];
-      const qty = enemy.isOverlevel ? 2 : 1;
-
-      Inv.addStackableItem(
-        'herb',
-        pickedHerb.id,
-        pickedHerb.name,
-        pickedHerb.icon,
-        qObj,
-        `${pickedHerb.shortDesc || pickedHerb.desc} (${qObj.name} x${qObj.mult})`,
-        qty
-      );
-      lootMessages.push(`+${qty} ${pickedHerb.name} [${qObj.name}]`);
-    }
-
-    const secretChance = enemy.isOverlevel ? 0.55 : 0.20;
-    if (Math.random() < secretChance) {
-      const lockedTechs = window.TuTien.UPGRADES.filter(u => u.requiresUnlock && !Upgrades.isUnlocked(u));
-      const lockedPills = window.TuTien.PILL_RECIPES.filter(r => r.requiresRecipeUnlock && !Fields.isPillRecipeUnlocked(r));
-      const lockedTals = window.TuTien.TALISMAN_RECIPES.filter(t => t.requiresRecipeUnlock && !Fields.isTalismanRecipeUnlocked(t));
-
-      if (lockedTechs.length > 0 && Math.random() < 0.45) {
-        const t = lockedTechs[Math.floor(Math.random() * lockedTechs.length)];
-        Upgrades.unlockTechnique(t.id);
-        lootMessages.push(`📘 Bí Tịch 【${Upgrades.getDisplayName(t)}】`);
-      } else if (lockedPills.length > 0 && Math.random() < 0.6) {
-        const p = lockedPills[Math.floor(Math.random() * lockedPills.length)];
-        Fields.unlockPillRecipe(p.id);
-        lootMessages.push(`📜 Đan Phương 【${p.name}】`);
-      } else if (lockedTals.length > 0) {
-        const tal = lockedTals[Math.floor(Math.random() * lockedTals.length)];
-        Fields.unlockTalismanRecipe(tal.id);
-        lootMessages.push(`🧧 Phù Phương 【${tal.name}】`);
+      if (playerPower < guardianPower * 0.65) {
+        this.playerCurrentHp = Math.max(1, Math.floor(this.playerCurrentHp * 0.35));
+        this.updateStatusBar();
+        if (window.TuTien.UI) {
+          window.TuTien.UI.showToast(`💥 ${sr.guardianName} quá mạnh! Hãy bấm "✨ Thám Hiểm An Toàn" hoặc Rèn Pháp Bảo trước!`, 'warn');
+        }
+        return;
       }
+      mult = 2;
     }
 
-    if (enemy.isOverlevel) {
-      State.data.prestige.daoVan += 2;
-      State.data.prestige.totalDaoVanEarned += 2;
-      lootMessages.push(`+2 Đạo Vận`);
+    const stones = (sr.stoneReward[0] + Math.floor(Math.random() * (sr.stoneReward[1] - sr.stoneReward[0] + 1))) * mult;
+    if (Inv && typeof Inv.addSpiritStones === 'function') {
+      Inv.addSpiritStones(stones);
     }
 
-    this.nodes = this.nodes.filter(n => n.id !== enemy.id);
+    const realmObj = State ? State.getCurrentRealm() : { req: 100 };
+    const bonusQi = Math.max(80, Math.floor((realmObj.req || 100) * 0.18 * sr.qiMult * mult));
+    if (State && State.data) {
+      State.data.qi += bonusQi;
+      State.data.totalQiEarned += bonusQi;
+    }
 
-    const summaryStr = `🏆 Trảm 【${enemy.name}】! Nhận: ${lootMessages.join(' • ')}`;
-    this.combatState.logs.unshift(summaryStr);
-    State.addLog(summaryStr, 'success');
+    const baseMats = [
+      { id: 'sat_khoang', name: 'Huyền Thiết (Sắt)', icon: '⛏️' },
+      { id: 'da_khoang', name: 'Thanh Linh Thạch (Đá)', icon: '⛰️' },
+      { id: 'go_linh_moc', name: 'Thiết Mộc (Gỗ)', icon: '🌲' }
+    ];
+    const pickedMat = baseMats[Math.floor(Math.random() * baseMats.length)];
+    const matQty = (sr.matQty[0] + Math.floor(Math.random() * (sr.matQty[1] - sr.matQty[0] + 1))) * mult;
 
-    if (window.TuTien.Audio) window.TuTien.Audio.playBreakthroughSuccess();
+    const qualities = window.TuTien.ITEM_QUALITIES || [];
+    const qObj = qualities.find(q => q.tier === sr.maxItemTier) || { tier: 2, name: 'Trung Phẩm', color: '#4ade80', mult: 1.5 };
+
+    if (Inv && typeof Inv.addStackableItem === 'function') {
+      Inv.addStackableItem(
+        'material',
+        pickedMat.id,
+        pickedMat.name,
+        pickedMat.icon,
+        qObj,
+        `Nguyên liệu Pháp Bảo thu được từ ${sr.name} (${sr.rankLabel}).`,
+        matQty
+      );
+    }
+
+    const rewardSummary = [
+      `💎 +${stones} Linh Thạch`,
+      `✨ +${Utils.formatNumber(bonusQi)} Tu vi`,
+      `${pickedMat.icon} ${pickedMat.name} [${qObj.name}] ×${matQty}`
+    ];
+
+    if (Math.random() <= sr.goldChance && Inv && typeof Inv.addStackableItem === 'function') {
+      const goldQty = Math.max(1, Math.floor((sr.tier >= 4 ? 2 : 1) * mult));
+      Inv.addStackableItem(
+        'material',
+        'vang_tinh_kim',
+        'Thái Ất Tinh Kim (Vàng)',
+        '🌕',
+        qObj,
+        `Tinh kim quý hiếm từ ${sr.name} (${sr.rankLabel}).`,
+        goldQty
+      );
+      rewardSummary.push(`🌕 Thái Ất Tinh Kim (Vàng) [${qObj.name}] ×${goldQty}`);
+    }
+
+    const msg = `🎉 Khám phá 【${sr.name} — ${sr.rankLabel}】${mult === 2 ? ' (Phá Trận x2)' : ''}: Nhận ${rewardSummary.join(', ')}!`;
+
+    this.secretRealm = null;
+    this.scheduleNextSecretRealm();
+    this.lastLootBannerHtml = msg;
+
+    if (this.anomalyBannerEl) {
+      this.anomalyBannerEl.innerHTML = msg;
+      this.anomalyBannerEl.classList.remove('anomaly-active');
+    }
+    if (this.popupOverlayEl) {
+      this.popupOverlayEl.classList.add('hidden');
+    }
+
+    this.renderSecretRealmSpot();
+    this.updateStatusBar();
+
     if (window.TuTien.UI) {
-      window.TuTien.UI.showToast(summaryStr, 'success', 'happy');
-      window.TuTien.UI.updateAll();
+      window.TuTien.UI.showToast(msg, 'success');
     }
   },
 
-  exitCombatToMap() {
-    if (this.combatExitTimeout) {
-      clearTimeout(this.combatExitTimeout);
-      this.combatExitTimeout = null;
+  // ===========================================================================
+  // PHẦN 5: TÚI ĐỒ NHANH & LÒ CHẾ TẠO PHÁP BẢO (SẮT, ĐÁ, GỖ, VÀNG)
+  // ===========================================================================
+
+  openQuickBagModal() {
+    if (!this.bagModalEl) return;
+    const Inv = window.TuTien.Inventory;
+    const items = Inv ? Inv.getBagData().items : [];
+
+    const listHtml =
+      items.length === 0
+        ? `<div class="jade-empty">Túi đồ hiện đang trống. Hãy đánh bại Yêu Thú / Tu Sĩ hoặc khám phá Bí Cảnh trên bản đồ!</div>`
+        : items
+            .map(
+              it => `
+              <div class="newbie-bag-item" style="border-left:3px solid ${it.qualityColor || it.color || '#94a3b8'}">
+                <div class="nbi-icon">${it.icon || '📦'}</div>
+                <div class="nbi-info">
+                  <div class="nbi-title" style="color:${it.qualityColor || it.color || '#f7e8c4'}">
+                    ${it.name} <span class="nbi-tier">[${it.qualityName || it.tierName || 'Hạ Phẩm'}]</span>
+                  </div>
+                  <div class="nbi-desc">${it.effectDesc || it.desc || ''}</div>
+                </div>
+                <div class="nbi-qty">×${it.count || 1}</div>
+              </div>
+            `
+            )
+            .join('');
+
+    this.bagModalEl.innerHTML = `
+      <div class="newbie-modal-box" style="max-width:560px;">
+        <div class="newbie-modal-header">
+          <h3>🎒 Túi Đồ Hành Trang</h3>
+          <button id="btn-close-quick-bag" class="jade-drawer-close">✕</button>
+        </div>
+        <div class="newbie-bag-list">
+          ${listHtml}
+        </div>
+      </div>
+    `;
+
+    this.bagModalEl.classList.remove('hidden');
+
+    const closeBtn = document.getElementById('btn-close-quick-bag');
+    if (closeBtn) {
+      closeBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.bagModalEl.classList.add('hidden');
+      });
     }
-    this.inCombat = false;
-    this.autoBattle = false;
-    this.combatState = null;
-    this.activeView = 'map';
+  },
 
-    if (window.TuTien.Audio) {
-      window.TuTien.Audio.switchToTrainingBgm();
+  openQuickForgeModal() {
+    if (!this.forgeModalEl) return;
+    const Inv = window.TuTien.Inventory;
+    const Fields = window.TuTien.Fields;
+    const recipes = window.TuTien.ARTIFACT_RECIPES || [];
+
+    const matSummary = (window.TuTien.FORGE_MATERIALS || [])
+      .map(m => `<span class="nsb-chip">${m.icon} ${m.name}: <strong>${Inv ? Inv.getMaterialCountById(m.id) : 0}</strong></span>`)
+      .join('');
+
+    const recipesHtml = recipes
+      .map(rc => {
+        const canMat = Inv ? Inv.canAffordMaterials(rc.materials) : false;
+        const reqBadges = (rc.materials || [])
+          .map(req => {
+            const needCount = req.count || req.qty || 1;
+            const mDef = (window.TuTien.FORGE_MATERIALS || []).find(x => x.id === req.id) || { name: req.name || req.id, icon: req.icon || '📦' };
+            const have = Inv ? Inv.getMaterialCountById(req.id) : 0;
+            const ok = have >= needCount;
+            return `<span style="color:${ok ? '#86efac' : '#fca5a5'};font-size:0.76rem;margin-right:10px;">${mDef.icon} ${mDef.shortName || mDef.name}: <strong>${have}/${needCount}</strong></span>`;
+          })
+          .join('');
+
+        return `
+          <div class="newbie-bag-item" style="justify-content:space-between;border:1px solid rgba(227,184,102,0.3);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="nbi-icon">${rc.icon}</div>
+              <div class="nbi-info">
+                <div class="nbi-title" style="color:var(--bronze-light)">${rc.name}</div>
+                <div class="nbi-desc">${rc.shortDesc || rc.description || ''}</div>
+                <div style="margin-top:4px;">${reqBadges}</div>
+              </div>
+            </div>
+            <button class="btn-ancient-sm ${canMat ? 'affordable' : ''} btn-do-forge-recipe"
+                    data-recipe-id="${rc.id}" ${!canMat ? 'disabled' : ''}>
+              🔨 Chế Tạo
+            </button>
+          </div>
+        `;
+      })
+      .join('');
+
+    this.forgeModalEl.innerHTML = `
+      <div class="newbie-modal-box" style="max-width:600px;">
+        <div class="newbie-modal-header">
+          <h3>🔨 Lò Chế Tạo Pháp Bảo (Sắt • Đá • Gỗ • Vàng)</h3>
+          <button id="btn-close-quick-forge" class="jade-drawer-close">✕</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          ${matSummary}
+        </div>
+        <div class="newbie-bag-list" style="max-height:360px;">
+          ${recipesHtml}
+        </div>
+      </div>
+    `;
+
+    this.forgeModalEl.classList.remove('hidden');
+
+    const closeBtn = document.getElementById('btn-close-quick-forge');
+    if (closeBtn) {
+      closeBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.forgeModalEl.classList.add('hidden');
+      });
     }
 
-    if (this.combatViewEl) this.combatViewEl.classList.add('hidden');
-    if (this.merchantViewEl) this.merchantViewEl.classList.add('hidden');
-    if (this.mapViewEl) this.mapViewEl.classList.remove('hidden');
+    this.forgeModalEl.querySelectorAll('.btn-do-forge-recipe').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const rId = btn.getAttribute('data-recipe-id');
+        if (Fields && Fields.forgeArtifact(rId)) {
+          this.updateStatusBar();
+          this.openQuickForgeModal();
+        }
+      });
+    });
+  },
 
-    this.renderMapNodes();
-    this.updateFogVisibilityForNodes();
-    this.updateHeaderDOM();
-    this.renderMinimap();
+  // ===========================================================================
+  // PHẦN 6: VÒNG LẶP THỜI GIAN THỰC (update & tick)
+  // ===========================================================================
+
+  update(dtMs) {
+    this.tick(dtMs);
+  },
+
+  tick(dtMs) {
+    let needRenderMobs = false;
+
+    this.mobSpots.forEach((mob, idx) => {
+      if (mob.isDead) {
+        const prevSec = Math.ceil(mob.respawnRemainingMs / 1000);
+        mob.respawnRemainingMs -= dtMs;
+        const nextSec = Math.ceil(mob.respawnRemainingMs / 1000);
+
+        if (mob.respawnRemainingMs <= 0) {
+          this.respawnSingleMobAtRandomSpot(mob, idx);
+          needRenderMobs = true;
+        } else if (prevSec !== nextSec) {
+          needRenderMobs = true;
+        }
+      }
+    });
+
+    if (needRenderMobs && this.isOpen) {
+      this.renderMobSpots();
+    }
+
+    let timerSecChanged = false;
+    if (this.secretRealm) {
+      const prevSec = Math.ceil(this.secretRealm.remainingMs / 1000);
+      this.secretRealm.remainingMs -= dtMs;
+      const nextSec = Math.ceil(this.secretRealm.remainingMs / 1000);
+      if (prevSec !== nextSec) timerSecChanged = true;
+
+      if (this.secretRealm.remainingMs <= 0) {
+        this.secretRealm = null;
+        this.scheduleNextSecretRealm();
+        if (this.anomalyBannerEl) {
+          this.anomalyBannerEl.innerHTML = '💨 Bí cảnh đã khép lại sau 30 giây. Chờ dị tượng tiếp theo (15–20s)!';
+          this.anomalyBannerEl.classList.remove('anomaly-active');
+        }
+        if (this.isOpen) {
+          this.renderSecretRealmSpot();
+        }
+        timerSecChanged = true;
+      } else if (prevSec !== nextSec && this.isOpen) {
+        this.renderSecretRealmSpot();
+        const cdEl = document.getElementById('modal-secret-countdown');
+        if (cdEl) cdEl.textContent = `${Math.max(1, nextSec)} giây`;
+      }
+    } else {
+      const prevWait = Math.ceil(this.nextSecretSpawnMs / 1000);
+      this.nextSecretSpawnMs -= dtMs;
+      const nextWait = Math.ceil(this.nextSecretSpawnMs / 1000);
+      if (prevWait !== nextWait) timerSecChanged = true;
+
+      if (this.nextSecretSpawnMs <= 0) {
+        this.spawnRandomSecretRealm();
+        timerSecChanged = true;
+      }
+    }
+
+    if (timerSecChanged && this.isOpen && this.secretTimerChipEl) {
+      this.secretTimerChipEl.innerHTML = this.getSecretTimerStatusHtml();
+      this.secretTimerChipEl.classList.toggle('secret-active-chip', !!this.secretRealm);
+    }
   }
 };

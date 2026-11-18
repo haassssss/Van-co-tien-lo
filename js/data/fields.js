@@ -1,8 +1,7 @@
 /**
  * js/data/fields.js
- * Danh sách 8 Lĩnh Vực, 10 loại Linh Thảo, 9 loại Đan Dược và 6 loại Linh Phù:
- * - Cung cấp cả bản tóm tắt siêu gọn (`shortDesc` / `effectSummary`) để giao diện thoáng đẹp,
- *   và bản giải thích đầy đủ (`description`) để xem trong mục Giải Thích Chi Tiết ở Cài Đặt.
+ * Danh sách 8 Lĩnh Vực, 10 loại Linh Thảo, 4 loại Nguyên Liệu Luyện Khí (Sắt, Đá, Gỗ, Vàng),
+ * 5 Công Thức Pháp Bảo Bản Mệnh, 9 loại Đan Dược và 6 loại Linh Phù.
  */
 window.TuTien = window.TuTien || {};
 
@@ -25,6 +24,109 @@ window.TuTien.FIELD_RANKS = [
   'Cửu Phẩm'
 ];
 
+// 4 NGUYÊN LIỆU KHOÁNG SẢN & LINH MỘC ĐỂ CHẾ TẠO PHÁP BẢO (SẮT, ĐÁ, GỖ, VÀNG)
+window.TuTien.FORGE_MATERIALS = [
+  {
+    id: 'sat_khoang',
+    name: 'Huyền Thiết (Sắt)',
+    shortName: 'Sắt',
+    icon: '⛏️',
+    desc: 'Quặng sắt huyền thiết cứng rắn thu được từ đánh quái và khai khoáng, dùng rèn kiếm, thuẫn và linh chung.'
+  },
+  {
+    id: 'da_khoang',
+    name: 'Thanh Linh Thạch (Đá)',
+    shortName: 'Đá',
+    icon: '⛰️',
+    desc: 'Đá linh thạch ngàn năm trầm tích trên núi cao, dùng đúc Bàn Thạch Thuẫn, Thần Đỉnh và Kim Chùy.'
+  },
+  {
+    id: 'go_linh_moc',
+    name: 'Thiết Mộc (Gỗ)',
+    shortName: 'Gỗ',
+    icon: '🌲',
+    desc: 'Gỗ linh mộc cổ thụ dẫn truyền linh lực cực tốt, dùng chế tác Phi Kiếm và Cửu Long Đỉnh.'
+  },
+  {
+    id: 'vang_tinh_kim',
+    name: 'Thái Ất Tinh Kim (Vàng)',
+    shortName: 'Vàng',
+    icon: '🌕',
+    desc: 'Tinh kim ánh vàng quý hiếm chứa uy năng sấm sét, dùng đúc Linh Chung, Kim Chùy và Thần Đỉnh.'
+  }
+];
+
+// 5 CÔNG THỨC CHẾ TẠO PHÁP BẢO BẢN MỆNH (SỬ DỤNG SẮT, ĐÁ, GỖ, VÀNG)
+window.TuTien.ARTIFACT_RECIPES = [
+  {
+    id: 'thanh_van_kiem',
+    name: 'Thanh Vân Phi Kiếm',
+    icon: '🗡️',
+    focus: 'click',
+    qiCostBase: 180,
+    materials: [
+      { id: 'sat_khoang', name: 'Sắt', icon: '⛏️', count: 2 },
+      { id: 'go_linh_moc', name: 'Gỗ', icon: '🌲', count: 1 }
+    ],
+    shortDesc: 'Thiên về Sức Mạnh Công Kích & Linh Khí mỗi chạm',
+    description: 'Phi kiếm rèn từ Huyền Thiết và Thiết Mộc, gia tăng mạnh Sức Mạnh công kích và Linh Khí mỗi lần chạm.'
+  },
+  {
+    id: 'ban_thach_thuan',
+    name: 'Huyền Vũ Bàn Thạch Thuẫn',
+    icon: '🛡️',
+    focus: 'defense',
+    qiCostBase: 220,
+    materials: [
+      { id: 'da_khoang', name: 'Đá', icon: '⛰️', count: 2 },
+      { id: 'sat_khoang', name: 'Sắt', icon: '⛏️', count: 1 }
+    ],
+    shortDesc: 'Thiên về Sinh Mệnh (Máu) & Hộ Thể vững chắc',
+    description: 'Linh thuẫn đúc từ Thanh Linh Thạch và Huyền Thiết, tăng lượng lớn Máu tối đa và tốc độ hấp thụ nền.'
+  },
+  {
+    id: 'huyen_nguyen_chung',
+    name: 'Huyền Nguyên Linh Chung',
+    icon: '🔔',
+    focus: 'passive',
+    qiCostBase: 280,
+    materials: [
+      { id: 'sat_khoang', name: 'Sắt', icon: '⛏️', count: 2 },
+      { id: 'vang_tinh_kim', name: 'Vàng', icon: '🌕', count: 1 }
+    ],
+    shortDesc: 'Thiên về Tốc Độ Tu Luyện Nền & Linh Lực',
+    description: 'Chuông cổ mạ Thái Ất Tinh Kim, ngân vang tụ linh giúp tăng mạnh tốc độ hấp thụ nền và Linh Lực.'
+  },
+  {
+    id: 'tu_dien_chuy',
+    name: 'Tử Điện Kim Chùy',
+    icon: '🔨',
+    focus: 'click',
+    qiCostBase: 360,
+    materials: [
+      { id: 'vang_tinh_kim', name: 'Vàng', icon: '🌕', count: 2 },
+      { id: 'da_khoang', name: 'Đá', icon: '⛰️', count: 2 }
+    ],
+    shortDesc: 'Pháp bảo bá đạo: Tăng vọt Công Kích, Tốc Độ & Click',
+    description: 'Lôi chùy đúc từ Tinh Kim và Linh Thạch, mang uy lực sấm sét hủy diệt yêu tà.'
+  },
+  {
+    id: 'cuu_long_dinh',
+    name: 'Cửu Long Thần Đỉnh',
+    icon: '🏺',
+    focus: 'balanced',
+    qiCostBase: 500,
+    materials: [
+      { id: 'sat_khoang', name: 'Sắt', icon: '⛏️', count: 1 },
+      { id: 'da_khoang', name: 'Đá', icon: '⛰️', count: 1 },
+      { id: 'go_linh_moc', name: 'Gỗ', icon: '🌲', count: 1 },
+      { id: 'vang_tinh_kim', name: 'Vàng', icon: '🌕', count: 1 }
+    ],
+    shortDesc: 'Chí bảo Tứ Tượng: Tăng toàn diện Nền, Chạm & 4 Chỉ Số',
+    description: 'Thần đỉnh hội tụ đủ Sắt, Đá, Gỗ, Vàng của đất trời, gia tăng toàn diện tốc độ tu luyện và tứ đại chỉ số chiến đấu.'
+  }
+];
+
 window.TuTien.HERB_TYPES = [
   {
     id: 'tu_linh_thao',
@@ -32,8 +134,8 @@ window.TuTien.HERB_TYPES = [
     icon: '🌿',
     mapOnly: false,
     biome: 'center',
-    shortDesc: 'Nguyên liệu luyện Tụ Khí Đan, Chiến Đan & Pháp Bảo',
-    desc: 'Linh thảo chứa thanh khí dồi dào, dùng luyện Tụ Khí Đan, Cuồng Bạo Đan và đúc Pháp Bảo.'
+    shortDesc: 'Nguyên liệu luyện Tụ Khí Đan & Chiến Đan',
+    desc: 'Linh thảo chứa thanh khí dồi dào, dùng luyện Tụ Khí Đan và Cuồng Bạo Chiến Đan.'
   },
   {
     id: 'pha_chuong_qua',
@@ -68,8 +170,8 @@ window.TuTien.HERB_TYPES = [
     icon: '❄️',
     mapOnly: true,
     biome: 'ice',
-    shortDesc: '[Bí Cảnh Đông Bắc] Luyện Hàn Ngọc Tĩnh Tâm Đan',
-    desc: '[Linh Thảo Bí Cảnh] Mọc trên Hàn Băng Tuyết Đỉnh (Đông Bắc), dùng luyện Hàn Ngọc Tĩnh Tâm Đan.'
+    shortDesc: '[Bí Cảnh] Luyện Hàn Ngọc Tĩnh Tâm Đan',
+    desc: '[Linh Thảo Bí Cảnh] Mọc trên núi tuyết, dùng luyện Hàn Ngọc Tĩnh Tâm Đan.'
   },
   {
     id: 'xich_viem_chu_qua',
@@ -77,8 +179,8 @@ window.TuTien.HERB_TYPES = [
     icon: '🔥',
     mapOnly: true,
     biome: 'lava',
-    shortDesc: '[Bí Cảnh Tây Nam] Luyện Xích Viêm Đan & Thiên Kiếm Phù',
-    desc: '[Linh Thảo Bí Cảnh] Mọc nơi Xích Viêm Hỏa Sơn (Tây Nam), dùng luyện Xích Viêm Bá Thể Đan & Thiên Kiếm Phù.'
+    shortDesc: '[Bí Cảnh] Luyện Xích Viêm Đan & Thiên Kiếm Phù',
+    desc: '[Linh Thảo Bí Cảnh] Hấp thu địa hỏa, dùng luyện Xích Viêm Bá Thể Đan & Thiên Kiếm Phù.'
   },
   {
     id: 'u_minh_bi_ngan',
@@ -86,8 +188,8 @@ window.TuTien.HERB_TYPES = [
     icon: '🟣',
     mapOnly: true,
     biome: 'abyss',
-    shortDesc: '[Bí Cảnh Tây Bắc] Luyện U Minh Thần Tốc Đan',
-    desc: '[Linh Thảo Bí Cảnh] Mọc tại U Minh Ma Vực (Tây Bắc), dùng luyện U Minh Thần Tốc Đan.'
+    shortDesc: '[Bí Cảnh] Luyện U Minh Thần Tốc Đan',
+    desc: '[Linh Thảo Bí Cảnh] Kỳ hoa u cốc, dùng luyện U Minh Thần Tốc Đan.'
   },
   {
     id: 'tinh_than_long_thao',
@@ -95,8 +197,8 @@ window.TuTien.HERB_TYPES = [
     icon: '✨',
     mapOnly: true,
     biome: 'island',
-    shortDesc: '[Bí Cảnh Đông Nam] Họa Phong Lôi Phù & Cửu Thiên Phù',
-    desc: '[Linh Thảo Bí Cảnh] Mọc ở Bích Hải Linh Đảo (Đông Nam), dùng vẽ Phong Lôi Thần Phù & Cửu Thiên Khiên Phù.'
+    shortDesc: '[Bí Cảnh] Họa Phong Lôi Phù & Cửu Thiên Phù',
+    desc: '[Linh Thảo Bí Cảnh] Tinh hoa tinh tú, dùng vẽ Phong Lôi Thần Phù & Cửu Thiên Khiên Phù.'
   },
   {
     id: 'thai_at_duong_hon_moc',
@@ -104,7 +206,7 @@ window.TuTien.HERB_TYPES = [
     icon: '🌳',
     mapOnly: true,
     biome: 'center',
-    shortDesc: '[Bí Cảnh Trung Tâm] Họa Kim Cang Bất Hoại Phù',
+    shortDesc: '[Bí Cảnh] Họa Kim Cang Bất Hoại Phù',
     desc: '[Linh Thảo Bí Cảnh] Linh mộc ngàn năm trong di tích cổ, dùng vẽ Kim Cang Bất Hoại Phù.'
   },
   {
@@ -113,8 +215,8 @@ window.TuTien.HERB_TYPES = [
     icon: '👑',
     mapOnly: true,
     biome: 'boss',
-    shortDesc: '[Thần Dược Bí Cảnh] Luyện Cửu Chuyển Tạo Hóa Kim Đan',
-    desc: '[Thần Dược Chí Tôn] Cực kỳ quý hiếm trên bản đồ hoặc rớt từ Yêu Vương, dùng luyện Cửu Chuyển Tạo Hóa Kim Đan!'
+    shortDesc: '[Thần Dược] Luyện Cửu Chuyển Tạo Hóa Kim Đan',
+    desc: '[Thần Dược Chí Tôn] Rớt từ Yêu Vương hoặc Bí Cảnh, dùng luyện Cửu Chuyển Tạo Hóa Kim Đan!'
   }
 ];
 
@@ -126,10 +228,10 @@ window.TuTien.FIELDS = [
     icon: '⚗️',
     implemented: 'full',
     qiDrainFactor: 0.12,
-    shortDesc: 'Tăng hiệu quả Đan Dược & mở rộng vùng lửa Luyện Đan',
-    description: 'Khống hỏa luyện chế 9 loại Linh Đan (4 đơn cơ bản + 5 Đan Phương Bí Truyền thu thập tại Xuất Quan).',
+    shortDesc: 'Tăng hiệu quả Đan Dược & mở trần phẩm chất Đan',
+    description: 'Khống hỏa luyện chế 9 loại Linh Đan. Cấp Đan Sư càng cao mới mở khóa được Thượng Phẩm, Cực Phẩm và Tiên Phẩm.',
     effectSummary(rank) {
-      return `+${rank * 8}% hiệu quả Đan • Mở rộng tâm hỏa`;
+      return `+${rank * 8}% hiệu quả Đan • Mở trần Phẩm Chất`;
     }
   },
   {
@@ -139,10 +241,10 @@ window.TuTien.FIELDS = [
     icon: '🗡️',
     implemented: 'full',
     qiDrainFactor: 0.15,
-    shortDesc: 'Đúc Pháp Bảo Bản Mệnh tăng tốc độ tu luyện & chiến lực',
-    description: 'Thiên chùy đoán tạo Pháp Bảo Bản Mệnh tăng vĩnh viễn tốc độ tu luyện và Sức Mạnh / Máu.',
+    shortDesc: 'Dùng Sắt, Đá, Gỗ, Vàng rèn 5 loại Pháp Bảo Bản Mệnh',
+    description: 'Thiên chùy đoán tạo 5 loại Pháp Bảo Bản Mệnh từ Sắt, Đá, Gỗ, Vàng giúp tăng tốc độ tu luyện và Sức Mạnh / Máu.',
     effectSummary(rank) {
-      return `+${rank * 6}% uy lực Pháp Bảo • Tăng tỉ lệ Tiên Phẩm`;
+      return `+${rank * 6}% uy lực Pháp Bảo • Mở trần Phẩm Chất`;
     }
   },
   {
@@ -152,8 +254,8 @@ window.TuTien.FIELDS = [
     icon: '🌿',
     implemented: 'full',
     qiDrainFactor: 0.05,
-    shortDesc: 'Tự động trồng 4 loại Linh Thảo cơ bản trong động phủ',
-    description: 'Trồng 4 loại Linh Thảo cơ bản (6 loại Linh Thảo hiếm hơn cần tự đi thu thập trên Bản Đồ Xuất Quan).',
+    shortDesc: 'Tự động trồng Linh Thảo & thu thập Gỗ/Đá cơ bản',
+    description: 'Trồng 4 loại Linh Thảo cơ bản trong động phủ và hỗ trợ thu hoạch thêm Gỗ, Đá khi tưới Linh Tuyền.',
     effectSummary(rank) {
       return `Tự thu hoạch 1 Linh Thảo mỗi ${(Math.max(4, 14 - rank)).toFixed(0)}s`;
     }

@@ -154,7 +154,7 @@ window.TuTien.Panels = {
    * 2. Bảng Lĩnh Vực (Tóm tắt siêu gọn: Kho Dược Liệu, Đan Phòng, Phù Đường, 8 Lĩnh Vực)
    */
   renderFieldsPanel() {
-    const container = document.getElementById('fields-panel-container');
+    const container = document.getElementById("fields-panel-container");
     if (!container) return;
 
     const Utils = window.TuTien.Utils;
@@ -162,24 +162,56 @@ window.TuTien.Panels = {
     const Fields = window.TuTien.Fields;
     const Inv = window.TuTien.Inventory;
     const fieldsState = State.data.fields;
-    const alchemyRank = Fields.getFieldState('luyen_dan').rank;
-    const forgeCost = Fields.getForgeArtifactCost();
+    const alchemyRank = Fields.getFieldState("luyen_dan").rank;
     const tendCost = Math.max(30, Math.round(window.TuTien.Cultivate.getBasePassiveRate() * 7));
     const talismanQiCost = Math.max(40, Math.round(window.TuTien.Cultivate.getBasePassiveRate() * 6));
     const showDetail = this.isDetailedMode();
 
-    const pillCdMax = Inv.getCraftCooldownSec('pill');
-    const artCdMax = Inv.getCraftCooldownSec('artifact');
-    const talCdMax = Inv.getCraftCooldownSec('talisman');
+    const pillCdMax = Inv.getCraftCooldownSec("pill");
+    const artCdMax = Inv.getCraftCooldownSec("artifact");
+    const talCdMax = Inv.getCraftCooldownSec("talisman");
 
-    const pillRem = Inv.getRemainingCooldownSec('pill');
-    const artRem = Inv.getRemainingCooldownSec('artifact');
-    const talRem = Inv.getRemainingCooldownSec('talisman');
+    const pillRem = Inv.getRemainingCooldownSec("pill");
+    const artRem = Inv.getRemainingCooldownSec("artifact");
+    const talRem = Inv.getRemainingCooldownSec("talisman");
 
     const herbSummaryHtml = window.TuTien.HERB_TYPES.map(h => {
       const cnt = Inv.getHerbCountById(h.id);
       return `<span class="herb-chip" title="${h.desc}">${h.icon} ${h.name}: <strong>${cnt}</strong></span>`;
-    }).join('');
+    }).join("");
+
+    const forgeMatSummaryHtml = (window.TuTien.FORGE_MATERIALS || []).map(m => {
+      const cnt = Inv.getMaterialCountById(m.id);
+      return `<span class="herb-chip" style="border-color:rgba(227,184,102,0.55)" title="${m.desc}">${m.icon} ${m.shortName}: <strong>${cnt}</strong></span>`;
+    }).join("");
+
+    const artifactsHtml = (window.TuTien.ARTIFACT_RECIPES || []).map(ar => {
+      const qiCost = Fields.getForgeArtifactCost(ar.id);
+      const hasMats = Inv.canAffordMaterials(ar.materials);
+      const canForge = artRem <= 0 && hasMats && State.data.qi >= qiCost;
+      const reqStr = ar.materials
+        .map(m => `${m.count} ${m.icon} ${m.name} (${Inv.getMaterialCountById(m.id)})`)
+        .join(" + ");
+
+      return `
+        <div class="ancient-subrow">
+          <div class="subrow-info">
+            <div class="jade-card-title">
+              ${ar.icon} ${ar.name}
+              <span class="jade-badge">Pháp Bảo • ${artCdMax}s</span>
+            </div>
+            <div class="jade-card-desc">
+              <span style="color:var(--jade-bright)">${ar.shortDesc}</span> • Cần: <strong>${reqStr}</strong> + ${Utils.formatNumber(qiCost)} LK
+            </div>
+          </div>
+          <div class="subrow-actions">
+            <button class="btn-ancient-sm btn-forge-recipe ${canForge ? "affordable" : ""}" data-artifact="${ar.id}" ${artRem > 0 ? "disabled" : ""}>
+              ${artRem > 0 ? `${artRem.toFixed(1)}s` : "🔨 Rèn"}
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
 
     const pillsHtml = window.TuTien.PILL_RECIPES.map(r => {
       const recipeUnlocked = Fields.isPillRecipeUnlocked(r);
@@ -194,22 +226,22 @@ window.TuTien.Panels = {
         : `🔒 Tìm tại Bí Cảnh • Cần: ${r.herbCost} ${r.requiredHerbName}`;
 
       return `
-        <div class="ancient-subrow ${!recipeUnlocked ? 'locked-card' : ''}">
+        <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
           <div class="subrow-info">
             <div class="jade-card-title">
-              ${recipeUnlocked ? r.icon : '🔒'} ${r.name}
-              <span class="jade-badge">${r.isPermanentStat ? '🌟 Vĩnh Viễn' : '⏱️ Tạm Thời'} • ${pillCdMax}s</span>
+              ${recipeUnlocked ? r.icon : "🔒"} ${r.name}
+              <span class="jade-badge">${r.isPermanentStat ? "🌟 Vĩnh Viễn" : "⏱️ Tạm Thời"} • ${pillCdMax}s</span>
             </div>
-            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${r.description} — ` : ''}${summaryLine}</div>
+            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${r.description} — ` : ""}${summaryLine}</div>
           </div>
           <div class="subrow-actions">
-            <button class="btn-ancient-sm btn-craft-pill ${canCraft ? 'affordable' : ''}" data-pill="${r.id}" ${!recipeUnlocked || !rankUnlocked || pillRem > 0 ? 'disabled' : ''}>
-              ${!recipeUnlocked ? '🔒 Chưa Mở' : !rankUnlocked ? `Phẩm ${r.minRank}` : pillRem > 0 ? `${pillRem.toFixed(1)}s` : `🔥 Luyện`}
+            <button class="btn-ancient-sm btn-craft-pill ${canCraft ? "affordable" : ""}" data-pill="${r.id}" ${!recipeUnlocked || !rankUnlocked || pillRem > 0 ? "disabled" : ""}>
+              ${!recipeUnlocked ? "🔒 Chưa Mở" : !rankUnlocked ? `Phẩm ${r.minRank}` : pillRem > 0 ? `${pillRem.toFixed(1)}s` : "🔥 Luyện"}
             </button>
           </div>
         </div>
       `;
-    }).join('');
+    }).join("");
 
     const talismansHtml = window.TuTien.TALISMAN_RECIPES.map(t => {
       const recipeUnlocked = Fields.isTalismanRecipeUnlocked(t);
@@ -222,19 +254,19 @@ window.TuTien.Panels = {
         : `🔒 Tìm tại Bí Cảnh • Cần: ${t.herbCost} ${t.requiredHerbName}`;
 
       return `
-        <div class="ancient-subrow ${!recipeUnlocked ? 'locked-card' : ''}">
+        <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
           <div class="subrow-info">
-            <div class="jade-card-title">${recipeUnlocked ? t.icon : '🔒'} ${t.name} <span class="jade-badge">${talCdMax}s</span></div>
-            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${t.description} — ` : ''}${summaryLine}</div>
+            <div class="jade-card-title">${recipeUnlocked ? t.icon : "🔒"} ${t.name} <span class="jade-badge">${talCdMax}s</span></div>
+            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${t.description} — ` : ""}${summaryLine}</div>
           </div>
           <div class="subrow-actions">
-            <button class="btn-ancient-sm btn-draw-talisman-recipe ${canDraw ? 'affordable' : ''}" data-talisman="${t.id}" ${!recipeUnlocked || talRem > 0 ? 'disabled' : ''}>
-              ${!recipeUnlocked ? '🔒 Chưa Mở' : talRem > 0 ? `${talRem.toFixed(1)}s` : `📜 Họa Phù`}
+            <button class="btn-ancient-sm btn-draw-talisman-recipe ${canDraw ? "affordable" : ""}" data-talisman="${t.id}" ${!recipeUnlocked || talRem > 0 ? "disabled" : ""}>
+              ${!recipeUnlocked ? "🔒 Chưa Mở" : talRem > 0 ? `${talRem.toFixed(1)}s` : "📜 Họa Phù"}
             </button>
           </div>
         </div>
       `;
-    }).join('');
+    }).join("");
 
     const fieldCardsHtml = window.TuTien.FIELDS.map(fDef => {
       const fState = Fields.getFieldState(fDef.id);
@@ -250,7 +282,7 @@ window.TuTien.Panels = {
       );
 
       return `
-        <div class="jade-card ${isActive ? 'jade-card-active' : ''}">
+        <div class="jade-card ${isActive ? "jade-card-active" : ""}">
           <div class="jade-card-icon">${fDef.icon}</div>
           <div class="jade-card-body">
             <div class="jade-card-head">
@@ -259,46 +291,50 @@ window.TuTien.Panels = {
                 ${talentObj.name} (x${talentObj.multiplier})
               </span>
             </div>
-            ${showDetail ? `<p class="jade-card-desc">${fDef.description}</p>` : ''}
+            ${showDetail ? `<p class="jade-card-desc">${fDef.description}</p>` : ""}
             <p class="jade-card-effect">${fDef.effectSummary(fState.rank)} • -${cdReducePct}% Hồi</p>
             <div class="ancient-exp-row">
               <div class="ancient-bar-track">
                 <div id="field-exp-fill-${fDef.id}" class="ancient-bar-fill" style="width:${expPct.toFixed(1)}%"></div>
               </div>
               <span id="field-exp-text-${fDef.id}" class="ancient-exp-txt">
-                ${fState.rank >= 9 ? 'Viên Mãn' : `${Utils.formatNumber(fState.exp)}/${Utils.formatNumber(reqExp)}`}
+                ${fState.rank >= 9 ? "Viên Mãn" : `${Utils.formatNumber(fState.exp)}/${Utils.formatNumber(reqExp)}`}
               </span>
             </div>
           </div>
-          <button class="btn-ancient btn-toggle-field ${isActive ? 'affordable' : ''}" data-field="${fDef.id}">
-            <span class="btn-main-txt">${isActive ? 'Đang Luyện' : 'Tu Luyện'}</span>
+          <button class="btn-ancient btn-toggle-field ${isActive ? "affordable" : ""}" data-field="${fDef.id}">
+            <span class="btn-main-txt">${isActive ? "Đang Luyện" : "Tu Luyện"}</span>
             <span class="btn-sub-txt">+${expRate.toFixed(1)} EXP/s</span>
           </button>
         </div>
       `;
-    }).join('');
-
-    const haveTuLinh = Inv.getHerbCountById('tu_linh_thao');
+    }).join("");
 
     container.innerHTML = `
       <div class="scroll-box">
         <div class="workshop-header-row" style="margin-bottom:6px;">
-          <div class="herb-chips-row" style="flex:1;">${herbSummaryHtml}</div>
-          <button id="btn-open-bag-shortcut" class="btn-ancient-sm affordable">
-            🎒 Túi Đồ (${Inv.getBagData().items.length})
-          </button>
+          <div style="flex:1;">
+            <div class="muted-label" style="margin-bottom:3px;">🌿 Kho Linh Thảo Luyện Đan:</div>
+            <div class="herb-chips-row">${herbSummaryHtml}</div>
+            <div class="muted-label" style="margin:6px 0 3px;">⛏️ Kho Nguyên Liệu Rèn Pháp Bảo (Thu thập khi săn Quái / Xuất Quan):</div>
+            <div class="herb-chips-row">${forgeMatSummaryHtml}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button id="btn-open-bag-shortcut" class="btn-ancient-sm affordable">
+              🎒 Túi Đồ (${Inv.getBagData().items.length})
+            </button>
+            <button id="btn-tend-field" class="btn-ancient-sm affordable">
+              🌿 Tưới Linh Tuyền (${Utils.formatNumber(tendCost)} LK)
+            </button>
+          </div>
         </div>
 
-        <div class="workshop-btn-row" style="grid-template-columns: 1fr 1fr;">
-          <button id="btn-tend-field" class="btn-ancient-sm affordable">
-            🌿 Tưới Linh Tuyền (${Utils.formatNumber(tendCost)} LK)
-          </button>
-          <button id="btn-forge-artifact" class="btn-ancient-sm ${artRem <= 0 && haveTuLinh >= 3 ? 'affordable' : ''}" ${artRem > 0 ? 'disabled' : ''}>
-            ${artRem > 0 ? `🔨 Nung (${artRem.toFixed(1)}s)` : `🔨 Đúc Pháp Bảo (${Utils.formatNumber(forgeCost)} LK + 3 Tụ Linh • ${artCdMax}s)`}
-          </button>
+        <div class="pills-list-wrap" style="margin-top:8px;border-top:1px solid rgba(212,175,55,0.2);padding-top:6px;">
+          <div class="muted-label" style="margin-bottom:4px;">🔨 ĐOÁN TẠO PHÁP BẢO (Dùng Sắt, Đá, Gỗ, Vàng):</div>
+          ${artifactsHtml}
         </div>
 
-        <div class="pills-list-wrap" style="margin-top:8px;">
+        <div class="pills-list-wrap" style="margin-top:8px;border-top:1px solid rgba(212,175,55,0.2);padding-top:6px;">
           <div class="muted-label" style="margin-bottom:4px;">⚗️ ĐAN PHÒNG (9 Đan Phương):</div>
           ${pillsHtml}
         </div>
@@ -315,48 +351,47 @@ window.TuTien.Panels = {
       </div>
     `;
 
-    const btnBag = document.getElementById('btn-open-bag-shortcut');
+    const btnBag = document.getElementById("btn-open-bag-shortcut");
     if (btnBag) {
-      btnBag.addEventListener('pointerdown', e => {
+      btnBag.addEventListener("pointerdown", e => {
         e.preventDefault();
-        if (window.TuTien.Hotbar) window.TuTien.Hotbar.openPanel('inventory');
+        if (window.TuTien.Hotbar) window.TuTien.Hotbar.openPanel("inventory");
       });
     }
 
-    const btnTend = document.getElementById('btn-tend-field');
+    const btnTend = document.getElementById("btn-tend-field");
     if (btnTend) {
-      btnTend.addEventListener('pointerdown', e => {
+      btnTend.addEventListener("pointerdown", e => {
         e.preventDefault();
         Fields.tendSpiritField();
       });
     }
 
-    const btnForge = document.getElementById('btn-forge-artifact');
-    if (btnForge) {
-      btnForge.addEventListener('pointerdown', e => {
+    container.querySelectorAll(".btn-forge-recipe").forEach(btn => {
+      btn.addEventListener("pointerdown", e => {
         e.preventDefault();
-        Fields.forgeArtifact();
-      });
-    }
-
-    container.querySelectorAll('.btn-craft-pill').forEach(btn => {
-      btn.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        Fields.craftPill(btn.getAttribute('data-pill'));
+        Fields.forgeArtifact(btn.getAttribute("data-artifact"));
       });
     });
 
-    container.querySelectorAll('.btn-draw-talisman-recipe').forEach(btn => {
-      btn.addEventListener('pointerdown', e => {
+    container.querySelectorAll(".btn-craft-pill").forEach(btn => {
+      btn.addEventListener("pointerdown", e => {
         e.preventDefault();
-        Fields.craftTalisman(btn.getAttribute('data-talisman'));
+        Fields.craftPill(btn.getAttribute("data-pill"));
       });
     });
 
-    container.querySelectorAll('.btn-toggle-field').forEach(btn => {
-      btn.addEventListener('pointerdown', e => {
+    container.querySelectorAll(".btn-draw-talisman-recipe").forEach(btn => {
+      btn.addEventListener("pointerdown", e => {
         e.preventDefault();
-        Fields.toggleActiveField(btn.getAttribute('data-field'));
+        Fields.craftTalisman(btn.getAttribute("data-talisman"));
+      });
+    });
+
+    container.querySelectorAll(".btn-toggle-field").forEach(btn => {
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        Fields.toggleActiveField(btn.getAttribute("data-field"));
       });
     });
   },
@@ -421,7 +456,7 @@ window.TuTien.Panels = {
         : filteredItems
             .map(it => {
               const isArt = it.category === 'artifact';
-              const isHerb = it.category === 'herb';
+              const isHerb = it.category === 'herb' || it.category === 'material';
               const catLabel =
                 it.category === 'artifact'
                   ? 'Pháp Bảo'
@@ -502,6 +537,7 @@ window.TuTien.Panels = {
         <button class="btn-ancient-sm bag-filter-btn ${filter === 'pill' ? 'affordable' : ''}" data-filter="pill">⚗️ Đan Dược</button>
         <button class="btn-ancient-sm bag-filter-btn ${filter === 'talisman' ? 'affordable' : ''}" data-filter="talisman">📜 Phù Văn</button>
         <button class="btn-ancient-sm bag-filter-btn ${filter === 'herb' ? 'affordable' : ''}" data-filter="herb">🌿 Linh Thảo</button>
+        <button class="btn-ancient-sm bag-filter-btn ${filter === 'material' ? 'affordable' : ''}" data-filter="material">⛏️ Sắt/Đá/Gỗ/Vàng</button>
       </div>
 
       <div class="jade-cards-stack">

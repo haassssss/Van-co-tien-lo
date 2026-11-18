@@ -124,30 +124,85 @@ window.TuTien.Inventory = {
     );
   },
 
+  /**
+   * Tính Phẩm Chất vật phẩm (Đan Dược / Pháp Bảo / Linh Phù / Thảo Dược) chặt chẽ theo:
+   * 1. Cấp thông thạo Lĩnh Vực (rank 1 -> 9): Khóa trần bậc phẩm chất tối đa (chưa đủ cấp không thể ra Cực Phẩm / Tiên Phẩm).
+   * 2. Năng khiếu Lĩnh Vực (Không x0.5, Thường x1.0, Giỏi x1.5, Thiên Phú x2.5).
+   * 3. Điểm canh nhịp Minigame (0.1 -> 1.0) & Phẩm chất Dược Liệu đầu vào.
+   */
   rollItemQuality(fieldId, minigameScoreRatio = 0.5, herbQualityBonusTier = 1) {
     const Fields = window.TuTien.Fields;
-    const rank = Fields.getFieldState(fieldId).rank;
-    const talentMult = Fields.getFieldTalentObj(fieldId).multiplier;
+    const fState = Fields ? Fields.getFieldState(fieldId) : { rank: 1, talent: "normal" };
+    const rank = fState.rank || 1;
+    const talentObj = Fields ? Fields.getFieldTalentObj(fieldId) : { id: "normal", multiplier: 1.0 };
+    const talentId = talentObj.id || "normal";
+    const luckLvl = window.TuTien.Character ? window.TuTien.Character.getLuckBonusLevel() : 0;
 
-    const masteryFactor =
-      1 +
-      (rank - 1) * 0.28 +
-      (talentMult - 1) * 0.35 +
-      minigameScoreRatio * 1.65 +
-      (herbQualityBonusTier - 1) * 0.55;
+    // 1. Khóa trần bậc phẩm chất tối đa theo Cấp Lĩnh Vực & Năng Khiếu
+    let maxTierAllowed = 1;
+    if (rank <= 1) {
+      maxTierAllowed = talentId === "none" ? 1 : 2;
+      if ((talentId === "good" || talentId === "genius") && minigameScoreRatio >= 0.92) {
+        maxTierAllowed = 3;
+      }
+    } else if (rank <= 3) {
+      maxTierAllowed = talentId === "none" ? 2 : 3;
+    } else if (rank <= 5) {
+      maxTierAllowed = talentId === "none" ? 3 : 4;
+      if (rank === 5 && (talentId === "good" || talentId === "genius") && minigameScoreRatio >= 0.95) {
+        maxTierAllowed = 5;
+      }
+    } else {
+      maxTierAllowed = talentId === "none" ? 4 : 5;
+    }
+
+    // Nếu người chơi canh trượt vùng lửa trong minigame (< 0.45), chỉ có thể ra Hạ Phẩm (hoặc hiếm lắm Trung Phẩm)
+    if (minigameScoreRatio < 0.45) {
+      maxTierAllowed = Math.min(maxTierAllowed, 2);
+    }
+
+    const talentBonusMap = {
+      none: -0.35,
+      normal: 0.0,
+      good: 0.25,
+      genius: 0.55
+    };
+    const talentBonus = talentBonusMap[talentId] !== undefined ? talentBonusMap[talentId] : 0.0;
+
+    // Hệ số công lực luyện chế: ở cấp thấp (< 4) và năng khiếu Thường, power < 1 nên phẩm cao cực kỳ hiếm
+    const power = Math.max(
+      0.10,
+      0.28 +
+        (rank - 1) * 0.14 +
+        talentBonus +
+        Math.max(0, minigameScoreRatio - 0.5) * 0.55 +
+        Math.max(0, herbQualityBonusTier - 1) * 0.08 +
+        luckLvl * 0.04
+    );
+
+    const strictBaseWeights = {
+      1: 78.0, // Hạ Phẩm
+      2: 18.0, // Trung Phẩm
+      3: 3.2,  // Thượng Phẩm
+      4: 0.65, // Cực Phẩm
+      5: 0.15  // Tiên Phẩm
+    };
 
     const weighted = window.TuTien.ITEM_QUALITIES.map(q => {
-      let w = q.baseWeight;
-      if (q.tier >= 2) {
-        w *= Math.pow(masteryFactor, q.tier - 1);
-      }
-      if (minigameScoreRatio >= 0.88 && q.tier === 1) {
-        w = 0.1;
+      let w = 0;
+      if (q.tier <= maxTierAllowed) {
+        if (q.tier === 1) {
+          w = Math.max(12.0, strictBaseWeights[1] * (1.0 - Math.max(0, power - 0.9) * 0.45));
+        } else {
+          w = (strictBaseWeights[q.tier] || 0.1) * Math.pow(power, q.tier - 1);
+        }
       }
       return { quality: q, weight: w };
     });
 
     const total = weighted.reduce((s, x) => s + x.weight, 0);
+    if (total <= 0) return window.TuTien.ITEM_QUALITIES[0];
+
     let rand = Math.random() * total;
     for (const entry of weighted) {
       if (rand < entry.weight) return entry.quality;
@@ -233,6 +288,51 @@ window.TuTien.Inventory = {
     return newItem;
   },
 
+  /**
+   * Đếm số lượng 1 loại Nguyên liệu (Sắt, Đá, Gỗ, Vàng) hoặc Linh Thảo theo templateId
+   */
+  getMaterialCountById(matId) {
+    const bag = this.getBagData();
+    let sum = 0;
+    bag.items.forEach(it => {
+      if ((it.category === "material" || it.category === "herb") && it.templateId === matId) {
+        sum += it.count || 0;
+      }
+    });
+    return sum;
+  },
+
+  canAffordMaterials(materialsList) {
+    if (!Array.isArray(materialsList)) return true;
+    return materialsList.every(m => this.getMaterialCountById(m.id) >= m.count);
+  },
+
+  consumeMaterialsList(materialsList) {
+    if (!this.canAffordMaterials(materialsList)) return null;
+    const bag = this.getBagData();
+    let totalItems = 0;
+    let weightedTierSum = 0;
+
+    materialsList.forEach(req => {
+      let remain = req.count;
+      const matching = bag.items
+        .filter(it => (it.category === "material" || it.category === "herb") && it.templateId === req.id && it.count > 0)
+        .sort((a, b) => b.qualityTier - a.qualityTier);
+
+      for (const stack of matching) {
+        if (remain <= 0) break;
+        const take = Math.min(remain, stack.count);
+        stack.count -= take;
+        remain -= take;
+        totalItems += take;
+        weightedTierSum += take * (stack.qualityTier || 1);
+      }
+    });
+
+    bag.items = bag.items.filter(it => !((it.category === "material" || it.category === "herb") && it.count <= 0));
+    return totalItems > 0 ? weightedTierSum / totalItems : 1;
+  },
+
   getHerbCountById(herbId) {
     const bag = this.getBagData();
     let sum = 0;
@@ -267,10 +367,12 @@ window.TuTien.Inventory = {
     return tierSum / neededCount;
   },
 
-  addArtifactItem(qualityObj, smithRank) {
+  addArtifactItem(qualityObj, smithRank, recipeId = null) {
     const bag = this.getBagData();
-    const templates = window.TuTien.ARTIFACT_TEMPLATES;
-    const tpl = templates[Math.floor(Math.random() * templates.length)];
+    const recipes = window.TuTien.ARTIFACT_RECIPES || window.TuTien.ARTIFACT_TEMPLATES;
+    const tpl =
+      (recipeId && recipes.find(r => r.id === recipeId)) ||
+      recipes[Math.floor(Math.random() * recipes.length)];
 
     const baseStat = (0.08 + smithRank * 0.025) * qualityObj.mult;
     const passiveBonus =
