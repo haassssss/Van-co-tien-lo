@@ -118,7 +118,8 @@ window.TuTien.Tribulation = {
     this.playerXPct = 50;
     this.hitsTaken = 0;
     // Chính Đạo chịu được 3 lần, Ma Đạo chỉ chịu được 2 lần!
-    this.maxHits = (factionCfg.tribulationMaxHits || cfg.maxHitsAllowed || 3) + bonusShield;
+    const prestigeShield = window.TuTien.State ? window.TuTien.State.getPrestigeUpgradeLevel('dao_van_ho_kiep_thuan') : 0;
+    this.maxHits = (factionCfg.tribulationMaxHits || cfg.maxHitsAllowed || 3) + bonusShield + prestigeShield;
     this.totalMs = Math.round(
       (cfg.baseDurationSec + majorIdx * cfg.extraSecPerMajorRealm) *
         (this.isMaDaoTribulation ? 1.12 : 1.0) *

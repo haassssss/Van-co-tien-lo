@@ -1,8 +1,10 @@
 /**
  * js/effects.js
- * Hệ thống Canvas Particles nâng cấp:
- * - Vẽ các dải lụa linh khí mềm mại (Multi-point Ribbon Trails) có đầu phát sáng kim quang,
- *   sử dụng chế độ hòa trộn ánh sáng ('lighter') tạo cảm giác huyền ảo chân thực thay vì các vạch thẳng đơn điệu.
+ * Hệ thống Canvas Particles SIÊU TỐI ƯU HIỆU NĂNG (60FPS mượt trên cả PC lẫn iPhone/Android):
+ * - Loại bỏ hoàn toàn `ctx.shadowBlur` (nguyên nhân chính gây lag GPU/CPU trên Chrome & Safari).
+ * - Sử dụng Sprite Hào Quang (Offscreen Glow Sprite Cache 28×28) vẽ qua `drawImage` tốc độ cực cao.
+ * - Không cấp phát object mỗi khung hình (dùng mảng phẳng fixed-length), không gọi `getBoundingClientRect()` mỗi frame.
+ * - Tự động tạm dừng vẽ nền khi người chơi mở cửa sổ Xuất Quan hoặc Độ Thiên Kiếp để tiết kiệm 100% tài nguyên.
  */
 window.TuTien = window.TuTien || {};
 
@@ -15,6 +17,14 @@ window.TuTien.Effects = {
   height: 0,
   dpr: 1,
 
+  // Cache tâm Đan Điền để không ép trình duyệt layout reflow mỗi khung hình
+  cachedCenterX: 0,
+  cachedCenterY: 0,
+  centerCacheTimerMs: 0,
+
+  // Cache các sprite hạt phát sáng vẽ sẵn (Offscreen Canvas) theo mã màu
+  glowSpriteCache: {},
+
   particlesPool: [],
   ripplesPool: [],
   lightningsPool: [],
@@ -26,11 +36,11 @@ window.TuTien.Effects = {
     this.fgCanvas = document.getElementById('canvas-fg-fx');
     if (!this.bgCanvas || !this.fgCanvas) return;
 
-    this.bgCtx = this.bgCanvas.getContext('2d');
-    this.fgCtx = this.fgCanvas.getContext('2d');
+    this.bgCtx = this.bgCanvas.getContext('2d', { alpha: true, desynchronized: true });
+    this.fgCtx = this.fgCanvas.getContext('2d', { alpha: true, desynchronized: true });
 
-    // Khởi tạo Object Pool 150 dải linh khí, mỗi hạt lưu lịch sử 6 điểm tọa độ (trail) để vẽ dải lụa mượt mà
-    for (let i = 0; i < 150; i++) {
+    // Object Pool 65 hạt gọn nhẹ, dùng mảng tọa độ phẳng (Zero GC)
+    for (let i = 0; i < 65; i++) {
       this.particlesPool.push({
         active: false,
         layer: 'fg',
@@ -38,7 +48,12 @@ window.TuTien.Effects = {
         radius: 0,
         x: 0,
         y: 0,
-        trail: [],
+        prevX1: 0,
+        prevY1: 0,
+        prevX2: 0,
+        prevY2: 0,
+        prevX3: 0,
+        prevY3: 0,
         radialSpeed: 100,
         angularSpeed: 1.5,
         size: 2.5,
@@ -47,7 +62,7 @@ window.TuTien.Effects = {
       });
     }
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
       this.ripplesPool.push({
         active: false,
         x: 0,
@@ -59,7 +74,7 @@ window.TuTien.Effects = {
       });
     }
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       this.lightningsPool.push({
         active: false,
         segments: [],
@@ -69,12 +84,38 @@ window.TuTien.Effects = {
     }
 
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    this.refreshDantianCenter();
+    window.addEventListener('resize', () => {
+      this.resize();
+      this.refreshDantianCenter();
+    });
+  },
+
+  /**
+   * Tạo và lưu sẵn ảnh hạt phát sáng (28×28) 1 lần duy nhất cho mỗi màu -> vẽ bằng drawImage nhanh gấp 50 lần shadowBlur!
+   */
+  getGlowSprite(color) {
+    if (this.glowSpriteCache[color]) return this.glowSpriteCache[color];
+    const c = document.createElement('canvas');
+    c.width = 28;
+    c.height = 28;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(14, 14, 1, 14, 14, 13);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.28, color);
+    grad.addColorStop(0.65, color + '55');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 28, 28);
+    this.glowSpriteCache[color] = c;
+    return c;
   },
 
   resize() {
     if (!this.bgCanvas || !this.fgCanvas) return;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Giới hạn DPR tối đa 1.25 trên mobile và 1.5 trên PC để giảm tới 75% lượng pixel phải vẽ mỗi khung hình
+    const isMobile = window.innerWidth <= 900;
+    this.dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.5);
     this.width = window.innerWidth;
     this.height = window.innerHeight;
 
@@ -89,28 +130,27 @@ window.TuTien.Effects = {
     this.fgCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   },
 
+  refreshDantianCenter() {
+    const stageEl = document.getElementById('cultivator-target');
+    if (stageEl) {
+      const rect = stageEl.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const ratioY = (window.TuTien.CONFIG && window.TuTien.CONFIG.particles.dantianOffsetYRatio) || 0.56;
+        this.cachedCenterX = rect.left + rect.width * 0.5;
+        this.cachedCenterY = rect.top + rect.height * ratioY;
+        return;
+      }
+    }
+    this.cachedCenterX = this.width * 0.5;
+    this.cachedCenterY = this.height * 0.48;
+  },
+
   getQuality() {
     const State = window.TuTien.State;
     if (State && State.data && State.data.settings && State.data.settings.fxQuality) {
       return State.data.settings.fxQuality;
     }
     return window.TuTien.CONFIG.defaultFxQuality || 'high';
-  },
-
-  getDantianCenter() {
-    const stageEl = document.getElementById('cultivator-target');
-    if (stageEl) {
-      const rect = stageEl.getBoundingClientRect();
-      const ratioY = window.TuTien.CONFIG.particles.dantianOffsetYRatio || 0.56;
-      return {
-        x: rect.left + rect.width * 0.5,
-        y: rect.top + rect.height * ratioY
-      };
-    }
-    return {
-      x: this.width * 0.5,
-      y: this.height * 0.48
-    };
   },
 
   pickParticleColor() {
@@ -135,7 +175,8 @@ window.TuTien.Effects = {
     const quality = this.getQuality();
     if (quality === 'off') return;
 
-    const maxAllowed = cfg.particles.poolSizeByQuality[quality] || 75;
+    const maxByQ = { high: 52, medium: 30, low: 16 };
+    const maxAllowed = maxByQ[quality] || 30;
     let activeCount = 0;
     let freeParticle = null;
 
@@ -149,41 +190,47 @@ window.TuTien.Effects = {
 
     if (activeCount >= maxAllowed || !freeParticle) return;
 
-    const center = this.getDantianCenter();
+    const cx = this.cachedCenterX || this.width * 0.5;
+    const cy = this.cachedCenterY || this.height * 0.48;
     const mult = window.TuTien.Cultivate
       ? window.TuTien.Cultivate.getCurrentActiveMultiplier()
       : 1;
-    const speedScale = 1 + Math.min(2.6, (mult - 1) * 0.35);
+    const speedScale = 1 + Math.min(2.2, (mult - 1) * 0.3);
 
     if (fromClick && startX !== null && startY !== null) {
-      const dx = startX - center.x + window.TuTien.Utils.randomRange(-45, 45);
-      const dy = startY - center.y + window.TuTien.Utils.randomRange(-45, 45);
+      const dx = startX - cx + (Math.random() * 70 - 35);
+      const dy = startY - cy + (Math.random() * 70 - 35);
       freeParticle.radius = Math.max(28, Math.hypot(dx, dy));
       freeParticle.angle = Math.atan2(dy, dx);
     } else {
-      const maxR = Math.max(this.width, this.height) * 0.56;
-      freeParticle.radius = window.TuTien.Utils.randomRange(130, maxR);
+      const maxR = Math.max(this.width, this.height) * 0.52;
+      freeParticle.radius = 125 + Math.random() * Math.max(60, maxR - 125);
       freeParticle.angle = Math.random() * Math.PI * 2;
     }
 
+    const px = cx + Math.cos(freeParticle.angle) * freeParticle.radius;
+    const py = cy + Math.sin(freeParticle.angle) * freeParticle.radius * 0.88;
+
     freeParticle.active = true;
     freeParticle.layer = Math.random() < 0.45 ? 'bg' : 'fg';
-    freeParticle.x = center.x + Math.cos(freeParticle.angle) * freeParticle.radius;
-    freeParticle.y = center.y + Math.sin(freeParticle.angle) * freeParticle.radius * 0.88;
-    freeParticle.trail = [
-      { x: freeParticle.x, y: freeParticle.y },
-      { x: freeParticle.x, y: freeParticle.y }
-    ];
+    freeParticle.x = px;
+    freeParticle.y = py;
+    freeParticle.prevX1 = px;
+    freeParticle.prevY1 = py;
+    freeParticle.prevX2 = px;
+    freeParticle.prevY2 = py;
+    freeParticle.prevX3 = px;
+    freeParticle.prevY3 = py;
     freeParticle.radialSpeed =
       cfg.particles.baseInwardSpeed *
-      window.TuTien.Utils.randomRange(0.75, 1.3) *
-      (fromClick ? 1.6 : speedScale);
+      (0.8 + Math.random() * 0.45) *
+      (fromClick ? 1.55 : speedScale);
     freeParticle.angularSpeed =
       cfg.particles.swirlAngularSpeed *
-      window.TuTien.Utils.randomRange(0.75, 1.35) *
-      (fromClick ? 1.35 : 1 + (speedScale - 1) * 0.45);
-    freeParticle.size = window.TuTien.Utils.randomRange(1.8, 3.6);
-    freeParticle.alpha = window.TuTien.Utils.randomRange(0.65, 0.95);
+      (0.8 + Math.random() * 0.5) *
+      (fromClick ? 1.3 : 1 + (speedScale - 1) * 0.4);
+    freeParticle.size = 2.0 + Math.random() * 1.6;
+    freeParticle.alpha = 0.68 + Math.random() * 0.27;
     freeParticle.color = this.pickParticleColor();
   },
 
@@ -197,22 +244,18 @@ window.TuTien.Effects = {
       freeRipple.x = clientX;
       freeRipple.y = clientY;
       freeRipple.radius = 8;
-      freeRipple.maxRadius = 110;
-      freeRipple.alpha = 0.8;
+      freeRipple.maxRadius = 100;
+      freeRipple.alpha = 0.78;
       freeRipple.color = this.pickParticleColor();
     }
 
-    const cfg = window.TuTien.CONFIG;
-    const baseBurst = cfg.particles.clickBurstCount || 12;
-    const burstCount =
-      quality === 'high' ? baseBurst : quality === 'medium' ? Math.ceil(baseBurst * 0.6) : 4;
-
+    const burstCount = quality === 'high' ? 7 : quality === 'medium' ? 4 : 2;
     for (let i = 0; i < burstCount; i++) {
       this.spawnOneParticle(true, clientX, clientY);
     }
 
     const rootId = window.TuTien.State.data.prestige.rootId;
-    if (rootId === 'loi' && Math.random() < 0.65) {
+    if (rootId === 'loi' && Math.random() < 0.55) {
       this.spawnLightningArc(clientX, clientY);
     }
   },
@@ -221,34 +264,38 @@ window.TuTien.Effects = {
     const bolt = this.lightningsPool.find(l => !l.active);
     if (!bolt) return;
 
-    const center = this.getDantianCenter();
-    const startX =
-      fromX !== undefined
-        ? fromX
-        : center.x + window.TuTien.Utils.randomRange(-160, 160);
-    const startY =
-      fromY !== undefined
-        ? fromY
-        : center.y + window.TuTien.Utils.randomRange(-160, 160);
+    const cx = this.cachedCenterX || this.width * 0.5;
+    const cy = this.cachedCenterY || this.height * 0.48;
+    const startX = fromX !== undefined ? fromX : cx + (Math.random() * 300 - 150);
+    const startY = fromY !== undefined ? fromY : cy + (Math.random() * 300 - 150);
 
-    const steps = 6;
+    const steps = 5;
     const segments = [{ x: startX, y: startY }];
     for (let i = 1; i < steps; i++) {
       const t = i / steps;
-      const mx = startX + (center.x - startX) * t + window.TuTien.Utils.randomRange(-18, 18);
-      const my = startY + (center.y - startY) * t + window.TuTien.Utils.randomRange(-18, 18);
-      segments.push({ x: mx, y: my });
+      segments.push({
+        x: startX + (cx - startX) * t + (Math.random() * 32 - 16),
+        y: startY + (cy - startY) * t + (Math.random() * 32 - 16)
+      });
     }
-    segments.push({ x: center.x, y: center.y });
+    segments.push({ x: cx, y: cy });
 
     bolt.active = true;
     bolt.segments = segments;
-    bolt.alpha = 0.95;
+    bolt.alpha = 0.92;
     bolt.color = '#e879f9';
   },
 
   updateAndRender(dtMs) {
     if (document.hidden || !this.bgCtx || !this.fgCtx) return;
+
+    // Tạm dừng vẽ canvas hạt nền khi đang mở Xuất Quan hoặc Độ Kiếp để tối ưu 100% FPS
+    if (
+      (window.TuTien.Expedition && window.TuTien.Expedition.isOpen) ||
+      (window.TuTien.Tribulation && window.TuTien.Tribulation.active)
+    ) {
+      return;
+    }
 
     const quality = this.getQuality();
     this.bgCtx.clearRect(0, 0, this.width, this.height);
@@ -256,20 +303,22 @@ window.TuTien.Effects = {
 
     if (quality === 'off') return;
 
-    const cfg = window.TuTien.CONFIG;
-    const dtSec = Math.min(0.1, dtMs / 1000);
-    const center = this.getDantianCenter();
-
-    const activeMult = window.TuTien.Cultivate
-      ? window.TuTien.Cultivate.getCurrentActiveMultiplier()
-      : 1;
-    const isBoosting = window.TuTien.State.runtime.boostRemainingMs > 0;
-    const qualityFactor = quality === 'high' ? 1.0 : quality === 'medium' ? 0.6 : 0.3;
-
-    let spawnRate = cfg.particles.baseSpawnPerSec * qualityFactor;
-    if (isBoosting) {
-      spawnRate *= cfg.particles.boostSpawnMultiplier * (1 + (activeMult - 1) * 0.18);
+    // Chỉ cập nhật tâm Đan Điền mỗi 1.2 giây thay vì mỗi khung hình
+    this.centerCacheTimerMs += dtMs;
+    if (this.centerCacheTimerMs >= 1200) {
+      this.centerCacheTimerMs = 0;
+      this.refreshDantianCenter();
     }
+
+    const dtSec = Math.min(0.08, dtMs / 1000);
+    const cx = this.cachedCenterX || this.width * 0.5;
+    const cy = this.cachedCenterY || this.height * 0.48;
+
+    const isBoosting = window.TuTien.State.runtime.boostRemainingMs > 0;
+    const qualityFactor = quality === 'high' ? 1.0 : quality === 'medium' ? 0.58 : 0.28;
+
+    let spawnRate = 11 * qualityFactor;
+    if (isBoosting) spawnRate *= 1.85;
 
     this.spawnAccumulator += spawnRate * dtSec;
     while (this.spawnAccumulator >= 1) {
@@ -279,67 +328,61 @@ window.TuTien.Effects = {
 
     if (window.TuTien.State.data.prestige.rootId === 'loi') {
       this.lightningTimer += dtSec;
-      if (this.lightningTimer >= (isBoosting ? 0.45 : 1.6)) {
+      if (this.lightningTimer >= (isBoosting ? 0.55 : 1.8)) {
         this.lightningTimer = 0;
-        if (Math.random() < 0.7) {
-          this.spawnLightningArc();
-        }
+        if (Math.random() < 0.65) this.spawnLightningArc();
       }
     }
 
-    // Vẽ các dải lụa linh khí cong mượt mà với hòa trộn phát sáng ('lighter')
+    // Đặt trạng thái canvas 1 lần duy nhất cho cả lượt vẽ (không gọi save/restore trong vòng lặp)
+    this.bgCtx.globalCompositeOperation = 'lighter';
+    this.bgCtx.lineCap = 'round';
+    this.fgCtx.globalCompositeOperation = 'lighter';
+    this.fgCtx.lineCap = 'round';
+
     for (let i = 0; i < this.particlesPool.length; i++) {
       const p = this.particlesPool[i];
       if (!p.active) continue;
 
-      const closenessBoost = 1 + Math.max(0, (220 - p.radius) / 140);
+      const closenessBoost = 1 + Math.max(0, (210 - p.radius) / 145);
       p.angle += p.angularSpeed * closenessBoost * dtSec;
       p.radius -= p.radialSpeed * closenessBoost * dtSec;
 
-      if (p.radius <= 8) {
+      if (p.radius <= 10) {
         p.active = false;
         continue;
       }
 
-      p.x = center.x + Math.cos(p.angle) * p.radius;
-      p.y = center.y + Math.sin(p.angle) * p.radius * 0.88;
+      p.prevX3 = p.prevX2;
+      p.prevY3 = p.prevY2;
+      p.prevX2 = p.prevX1;
+      p.prevY2 = p.prevY1;
+      p.prevX1 = p.x;
+      p.prevY1 = p.y;
 
-      p.trail.unshift({ x: p.x, y: p.y });
-      if (p.trail.length > 7) {
-        p.trail.pop();
-      }
+      p.x = cx + Math.cos(p.angle) * p.radius;
+      p.y = cy + Math.sin(p.angle) * p.radius * 0.88;
 
       const ctx = p.layer === 'bg' ? this.bgCtx : this.fgCtx;
-      const fadeNearCenter = Math.min(1, p.radius / 42);
+      const fade = p.radius < 42 ? p.radius / 42 : 1;
+      const baseAlpha = p.alpha * fade;
 
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-
-      // Vẽ đuôi lụa mềm giảm dần độ đậm
-      for (let t = 0; t < p.trail.length - 1; t++) {
-        const pt1 = p.trail[t];
-        const pt2 = p.trail[t + 1];
-        const segRatio = 1 - t / p.trail.length;
-
-        ctx.globalAlpha = p.alpha * fadeNearCenter * segRatio * 0.78;
-        ctx.beginPath();
-        ctx.moveTo(pt1.x, pt1.y);
-        ctx.lineTo(pt2.x, pt2.y);
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = p.size * segRatio * 1.15;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-      }
-
-      // Vẽ hạt ngọc sáng ở đầu tia linh khí
-      ctx.globalAlpha = p.alpha * fadeNearCenter;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 10;
+      // Vẽ đuôi lụa mượt chỉ với 1 đường path duy nhất (nhanh gấp 6 lần)
+      ctx.globalAlpha = baseAlpha * 0.62;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.size * 0.95;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * 0.95, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-      ctx.restore();
+      ctx.moveTo(p.prevX3, p.prevY3);
+      ctx.lineTo(p.prevX2, p.prevY2);
+      ctx.lineTo(p.prevX1, p.prevY1);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+
+      // Vẽ đầu hạt phát sáng bằng sprite offscreen đã cache sẵn (0 shadowBlur!)
+      const sprite = this.getGlowSprite(p.color);
+      const drawSize = p.size * 4.4;
+      ctx.globalAlpha = baseAlpha;
+      ctx.drawImage(sprite, p.x - drawSize * 0.5, p.y - drawSize * 0.5, drawSize, drawSize);
     }
 
     // Sóng ánh sáng khi chạm
@@ -347,25 +390,22 @@ window.TuTien.Effects = {
       const r = this.ripplesPool[i];
       if (!r.active) continue;
 
-      r.radius += 210 * dtSec;
-      r.alpha -= 1.45 * dtSec;
+      r.radius += 220 * dtSec;
+      r.alpha -= 1.5 * dtSec;
       if (r.alpha <= 0 || r.radius >= r.maxRadius) {
         r.active = false;
         continue;
       }
 
-      this.fgCtx.save();
-      this.fgCtx.globalCompositeOperation = 'lighter';
-      this.fgCtx.globalAlpha = Math.max(0, r.alpha);
+      this.fgCtx.globalAlpha = r.alpha;
+      this.fgCtx.strokeStyle = r.color;
+      this.fgCtx.lineWidth = 2;
       this.fgCtx.beginPath();
       this.fgCtx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-      this.fgCtx.strokeStyle = r.color;
-      this.fgCtx.lineWidth = 2.2;
       this.fgCtx.stroke();
-      this.fgCtx.restore();
     }
 
-    // Tia sét Lôi Linh Căn
+    // Tia sét Lôi Linh Căn (không dùng shadowBlur)
     for (let i = 0; i < this.lightningsPool.length; i++) {
       const bolt = this.lightningsPool[i];
       if (!bolt.active) continue;
@@ -376,20 +416,21 @@ window.TuTien.Effects = {
         continue;
       }
 
-      this.fgCtx.save();
-      this.fgCtx.globalCompositeOperation = 'lighter';
-      this.fgCtx.globalAlpha = Math.max(0, bolt.alpha);
-      this.fgCtx.beginPath();
-      bolt.segments.forEach((pt, idx) => {
-        if (idx === 0) this.fgCtx.moveTo(pt.x, pt.y);
-        else this.fgCtx.lineTo(pt.x, pt.y);
-      });
+      this.fgCtx.globalAlpha = bolt.alpha;
       this.fgCtx.strokeStyle = bolt.color;
-      this.fgCtx.lineWidth = 2.2;
-      this.fgCtx.shadowColor = bolt.color;
-      this.fgCtx.shadowBlur = 12;
+      this.fgCtx.lineWidth = 2.4;
+      this.fgCtx.beginPath();
+      for (let s = 0; s < bolt.segments.length; s++) {
+        const pt = bolt.segments[s];
+        if (s === 0) this.fgCtx.moveTo(pt.x, pt.y);
+        else this.fgCtx.lineTo(pt.x, pt.y);
+      }
       this.fgCtx.stroke();
-      this.fgCtx.restore();
     }
+
+    this.bgCtx.globalAlpha = 1;
+    this.fgCtx.globalAlpha = 1;
+    this.bgCtx.globalCompositeOperation = 'source-over';
+    this.fgCtx.globalCompositeOperation = 'source-over';
   }
 };

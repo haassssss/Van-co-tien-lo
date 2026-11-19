@@ -105,7 +105,7 @@
   display: flex; flex-direction: column; gap: 7px;
   padding: 8px 6px;
   background: rgba(52, 41, 31, 0.5);
-  backdrop-filter: blur(6px);
+  /* tối ưu hiệu năng: đã tắt backdrop-filter blur */
   border: 1px solid var(--glass-line);
   border-radius: 20px;
 }
@@ -146,7 +146,7 @@
 .breakthrough-jade-bar {
   max-width: 620px; width: 100%; min-width: 300px; margin-bottom: 0;
   background: rgba(48, 38, 28, 0.76);
-  backdrop-filter: blur(8px);
+  /* tối ưu hiệu năng: đã tắt backdrop-filter blur */
   border: 1px solid var(--glass-line);
   border-radius: 18px;
   padding: 12px 16px;
@@ -180,7 +180,7 @@
   align-items: center; justify-content: center;
   padding: calc(var(--top-h) + 14px) 96px 16px 16px;
   background: rgba(20, 14, 8, 0.38);
-  backdrop-filter: blur(2px);
+  /* tối ưu hiệu năng: đã tắt backdrop-filter blur */
 }
 .jade-drawer {
   width: 100%; max-width: 860px; max-height: 100%;
@@ -512,7 +512,7 @@
   inset: 0;
   z-index: 60;
   background: rgba(12, 9, 6, 0.72);
-  backdrop-filter: blur(3px);
+  /* tối ưu hiệu năng: đã tắt backdrop-filter blur */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -820,7 +820,7 @@
   margin: 8px auto -36px auto;
   padding: 5px 14px;
   background: rgba(20, 15, 10, 0.84);
-  backdrop-filter: blur(4px);
+  /* tối ưu hiệu năng: đã tắt backdrop-filter blur */
   border: 1px solid rgba(227, 184, 102, 0.35);
   border-radius: 999px;
   font-size: 0.78rem;
@@ -894,4 +894,263 @@
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.28);
   border-radius: 8px;
+}
+
+
+/* =========================================================================
+   GIAO DIỆN ĐẤU TRƯỜNG GIAO CHIẾN 1v1 (POKEMON-STYLE) & BÍ CẢNH 3 TẦNG
+   ========================================================================= */
+.exp-combat-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  background: #0d1512;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pk-arena-shell {
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.pk-arena-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pk-top-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.pk-turn-badge {
+  padding: 5px 24px;
+  background: linear-gradient(135deg, #2b2116, #18120c);
+  border: 1.5px solid #e3b866;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fde047;
+  font-size: 0.92rem;
+}
+
+#btn-pk-auto {
+  position: absolute;
+  right: 0;
+}
+
+.pk-stage {
+  flex: 1;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 24px;
+}
+
+.pk-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.22s ease;
+}
+
+.pk-dash-right {
+  transform: translateX(48px);
+}
+
+.pk-shake {
+  animation: pkHitShake 0.26s ease;
+}
+
+@keyframes pkHitShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.pk-stat-card {
+  min-width: 245px;
+  background: rgba(15, 22, 24, 0.92);
+  border: 1.5px solid rgba(227, 184, 102, 0.65);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.pk-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.pk-bar-track {
+  width: 100%;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+
+.pk-bar-track.mp-track {
+  height: 7px;
+  margin-top: 4px;
+}
+
+.pk-bar-fill {
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.pk-bar-fill.hp-fill { background: linear-gradient(90deg, #16a34a, #4ade80); }
+.pk-bar-fill.mp-fill { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+.pk-bar-fill.enemy-hp-fill { background: linear-gradient(90deg, #dc2626, #fb7185); }
+
+.pk-bar-num {
+  font-size: 0.72rem;
+  text-align: right;
+  color: #e2e8f0;
+}
+
+.pk-platform-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pk-player-sprite {
+  width: 104px;
+  height: 118px;
+  object-fit: contain;
+  z-index: 2;
+  margin-bottom: -16px;
+}
+
+.pk-enemy-sprite-box {
+  z-index: 2;
+  margin-bottom: -10px;
+}
+
+.pk-big-token {
+  transform: scale(1.65);
+  margin: 18px;
+}
+
+.pk-platform {
+  width: 170px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, #2e6b4f 0%, #143628 70%, #0b1f17 100%);
+  border: 2px solid rgba(227, 184, 102, 0.6);
+}
+
+.pk-platform.enemy-platform {
+  background: radial-gradient(ellipse at center, #5c2a2a 0%, #2c1212 70%, #160909 100%);
+}
+
+.pk-bottom-bar {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 12px;
+  background: rgba(16, 13, 10, 0.94);
+  border: 1.5px solid rgba(227, 184, 102, 0.55);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pk-dialogue-box {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #f7f1e3;
+}
+
+.pk-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pk-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 8px;
+  background: linear-gradient(180deg, #2c2319 0%, #1d1610 100%);
+  border: 1px solid #d4af37;
+  border-radius: 10px;
+  color: #f7e8c4;
+  cursor: pointer;
+  transition: filter 0.14s ease, transform 0.12s ease;
+}
+
+.pk-action-btn:hover:not(:disabled) { filter: brightness(1.18); transform: translateY(-1px); }
+.pk-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pk-action-btn small { font-size: 0.7rem; color: #7dd3fc; }
+.pk-action-btn.flee-btn { border-color: #f43f5e; }
+.pk-action-btn.flee-btn small { color: #fda4af; }
+
+/* Bí Cảnh 3 Tầng Stepper & Loot Pouch */
+.secret-stage-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+}
+
+.step-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--ivory-muted);
+}
+
+.step-pill.done {
+  background: rgba(227, 184, 102, 0.22);
+  border-color: #e3b866;
+  color: #fef08a;
+  font-weight: 700;
+}
+
+.secret-loot-pouch {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(227, 184, 102, 0.35);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #86efac;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dragon-boss-spot {
+  z-index: 12 !important;
+}
+
+@media (max-width: 720px) {
+  .pk-stage { flex-direction: column; padding: 6px; }
+  .pk-bottom-bar { grid-template-columns: 1fr; }
 }

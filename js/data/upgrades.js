@@ -373,5 +373,21 @@ window.TuTien.PRESTIGE_UPGRADES = [
     formatEffect(level) {
       return `+${Math.round(level * 25)}% May Mắn Tư Chất & Tiên Phẩm`;
     }
+  },
+  {
+    id: 'dao_van_ho_kiep_thuan',
+    name: 'Bất Diệt Hộ Kiếp Thuẫn',
+    icon: '🛡️',
+    shortDesc: 'Vĩnh viễn +1 Khiên Đỡ Thiên Kiếp mỗi cấp (Tối đa +3 Khiên)',
+    description: 'Ngưng tụ Hồng Mông Khiên Khí vĩnh viễn giúp chịu thêm +1 luồng Thiên Lôi khi Độ Đại Thiên Kiếp mỗi cấp (Cấp 1: 10 • Cấp 2: 200 • Cấp 3: 1000 Đạo Vận).',
+    baseCost: 10,
+    costMultiplier: 1,
+    fixedCosts: [10, 200, 1000],
+    maxLevel: 3,
+    effectType: 'prestige_tribulation_shield',
+    effectPerLevel: 1,
+    formatEffect(level) {
+      return `+${level} Khiên Đỡ Thiên Kiếp (🛡️) vĩnh viễn`;
+    }
   }
 ];

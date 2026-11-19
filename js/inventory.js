@@ -374,25 +374,28 @@ window.TuTien.Inventory = {
       (recipeId && recipes.find(r => r.id === recipeId)) ||
       recipes[Math.floor(Math.random() * recipes.length)];
 
-    const baseStat = (0.08 + smithRank * 0.025) * qualityObj.mult;
-    const passiveBonus =
-      tpl.focus === 'passive'
-        ? baseStat * 1.35
-        : tpl.focus === 'balanced'
-        ? baseStat
-        : baseStat * 0.65;
-    const clickBonus =
-      tpl.focus === 'click'
-        ? baseStat * 1.45
-        : tpl.focus === 'balanced'
-        ? baseStat
-        : baseStat * 0.65;
+    // Hệ số Phẩm Chất tăng dứt khoát theo bậc (Hạ < Trung < Thượng < Cực < Tiên)
+    // Đảm bảo TUYỆT ĐỐI Pháp Bảo phẩm cao hơn luôn mạnh hơn Pháp Bảo phẩm thấp hơn!
+    const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+    const tierPower = tierPowerTable[qualityObj.tier] || qualityObj.mult || 1.0;
+    const rankFactor = 1 + (Math.max(1, smithRank) - 1) * 0.22;
 
-    const realmFactor = Math.max(1, Math.floor(window.TuTien.State.data.realmIndex / 3) + 1);
-    const combatHp = Math.round(25 * qualityObj.mult * smithRank * realmFactor);
-    const combatMp = Math.round(18 * qualityObj.mult * smithRank * realmFactor);
-    const combatAtk = Math.round(6 * qualityObj.mult * smithRank * realmFactor);
-    const combatSpd = Math.round(2 * qualityObj.mult * Math.ceil(smithRank / 2));
+    // Công thức cao cấp (tốn Vàng/4 loại nguyên liệu) có hệ số cơ bản nhỉnh hơn nhẹ (+0% -> +20%)
+    const recipeIndex = Math.max(0, recipes.findIndex(r => r.id === tpl.id));
+    const recipeBonus = 1 + recipeIndex * 0.05;
+
+    const baseStat = 0.08 * tierPower * rankFactor * recipeBonus;
+    // Focus chỉ tăng thêm thế mạnh (+15%), không trừ phạt chỉ số để tránh phẩm thấp vượt phẩm cao
+    const passiveBonus = tpl.focus === 'passive' || tpl.focus === 'balanced' ? baseStat * 1.15 : baseStat;
+    const clickBonus = tpl.focus === 'click' || tpl.focus === 'balanced' ? baseStat * 1.15 : baseStat;
+
+    const hpFocus = tpl.focus === 'defense' || tpl.focus === 'balanced' ? 1.2 : 1.0;
+    const atkFocus = tpl.focus === 'click' || tpl.focus === 'balanced' ? 1.2 : 1.0;
+
+    const combatHp = Math.round(60 * tierPower * rankFactor * recipeBonus * hpFocus);
+    const combatMp = Math.round(40 * tierPower * rankFactor * recipeBonus);
+    const combatAtk = Math.round(16 * tierPower * rankFactor * recipeBonus * atkFocus);
+    const combatSpd = Math.round(4 * tierPower * (1 + (Math.max(1, smithRank) - 1) * 0.15));
 
     const equippedCount = bag.items.filter(it => it.category === 'artifact' && it.equipped).length;
     const maxEquip = window.TuTien.CONFIG.crafting.maxEquippedArtifacts || 3;
@@ -407,7 +410,7 @@ window.TuTien.Inventory = {
       qualityTier: qualityObj.tier,
       qualityName: qualityObj.name,
       qualityColor: qualityObj.color,
-      mult: qualityObj.mult,
+      mult: tierPower,
       passiveBonus: Number(passiveBonus.toFixed(3)),
       clickBonus: Number(clickBonus.toFixed(3)),
       combatStats: {

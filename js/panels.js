@@ -82,7 +82,7 @@ window.TuTien.Panels = {
         <div class="jade-card-body" style="overflow:hidden;">
           <div class="item-top-meta-row">
             <span class="equip-quality-top-tag" style="color:${unlocked ? qObj.color : '#94a3b8'};border-color:${unlocked ? qObj.color : '#64748b'}">
-              ${unlocked ? `✦ ${qObj.name} (x${qObj.mult})` : '🔒 Bí Tịch'}
+              ${unlocked ? `✦ ${qObj.name} (x${qObj.mult})` : '🔒 ???'}
             </span>
             <span class="jade-badge">
               ${unlocked ? `Tầng ${level}/${maxForRealm}${isRealmCapped && !isGlobalMax ? ' • 🔒 Trần' : ''}` : 'Chưa Mở'}
@@ -90,13 +90,13 @@ window.TuTien.Panels = {
           </div>
           <div class="mc-marquee-viewport">
             <span class="mc-marquee-text" style="color:${unlocked ? qObj.color : '#cbd5e1'};font-weight:700;font-size:0.92rem;">
-              ${displayName}
+              ${unlocked ? displayName : '???'}
             </span>
           </div>
-          ${showDetail ? `<p class="jade-card-desc">${u.description}</p>` : ''}
+          ${showDetail && unlocked ? `<p class="jade-card-desc">${u.description}</p>` : ''}
           <div class="mc-marquee-viewport">
             <span class="mc-marquee-text" style="color:${unlocked ? 'var(--jade-bright)' : '#fda4af'};font-size:0.78rem;">
-              ${unlocked ? u.formatEffect(level, qObj.mult) : `🗺️ ${u.unlockSourceHint || 'Tìm tại Bí Cảnh Hồng Hoang'}`}
+              ${unlocked ? u.formatEffect(level, qObj.mult) : '🔒 ??? — Khám phá Bí Cảnh hoặc hạ Boss Rồng để lĩnh ngộ'}
             </span>
           </div>
         </div>
@@ -223,14 +223,14 @@ window.TuTien.Panels = {
 
       const summaryLine = recipeUnlocked
         ? `<span style="color:var(--jade-bright)">${r.getEffectText(alchemyRank)}</span> • Cần: <strong>${r.herbCost} ${r.requiredHerbName}</strong> (${haveHerbs}) + ${Utils.formatNumber(qiCost)} LK`
-        : `🔒 Tìm tại Bí Cảnh • Cần: ${r.herbCost} ${r.requiredHerbName}`;
+        : `🔒 ??? — Khám phá Bí Cảnh hoặc đánh Boss để mở khóa`;
 
       return `
         <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
           <div class="subrow-info">
             <div class="jade-card-title">
-              ${recipeUnlocked ? r.icon : "🔒"} ${r.name}
-              <span class="jade-badge">${r.isPermanentStat ? "🌟 Vĩnh Viễn" : "⏱️ Tạm Thời"} • ${pillCdMax}s</span>
+              ${recipeUnlocked ? `${r.icon} ${r.name}` : "🔒 ???"}
+              <span class="jade-badge">${recipeUnlocked ? `${r.isPermanentStat ? "🌟 Vĩnh Viễn" : "⏱️ Tạm Thời"} • ${pillCdMax}s` : "???"}</span>
             </div>
             <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${r.description} — ` : ""}${summaryLine}</div>
           </div>
@@ -251,12 +251,12 @@ window.TuTien.Panels = {
 
       const summaryLine = recipeUnlocked
         ? `<span style="color:var(--jade-bright)">${t.shortDesc || t.description}</span> • Cần: <strong>${t.herbCost} ${t.requiredHerbName}</strong> (${haveHerbs}) + ${Utils.formatNumber(talismanQiCost)} LK`
-        : `🔒 Tìm tại Bí Cảnh • Cần: ${t.herbCost} ${t.requiredHerbName}`;
+        : `🔒 ??? — Khám phá Bí Cảnh hoặc đánh Boss để mở khóa`;
 
       return `
         <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
           <div class="subrow-info">
-            <div class="jade-card-title">${recipeUnlocked ? t.icon : "🔒"} ${t.name} <span class="jade-badge">${talCdMax}s</span></div>
+            <div class="jade-card-title">${recipeUnlocked ? `${t.icon} ${t.name}` : "🔒 ???"} <span class="jade-badge">${recipeUnlocked ? `${talCdMax}s` : "???"}</span></div>
             <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${t.description} — ` : ""}${summaryLine}</div>
           </div>
           <div class="subrow-actions">

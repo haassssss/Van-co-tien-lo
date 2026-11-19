@@ -203,6 +203,10 @@ window.TuTien.Upgrades = {
 
   getPrestigeUpgradeCost(pUpgradeDef) {
     const currentLevel = window.TuTien.State.getPrestigeUpgradeLevel(pUpgradeDef.id);
+    if (Array.isArray(pUpgradeDef.fixedCosts)) {
+      if (currentLevel >= pUpgradeDef.fixedCosts.length) return Infinity;
+      return pUpgradeDef.fixedCosts[currentLevel];
+    }
     return Math.max(
       1,
       Math.round(pUpgradeDef.baseCost * Math.pow(pUpgradeDef.costMultiplier, currentLevel))
