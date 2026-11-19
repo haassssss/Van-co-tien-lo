@@ -24,7 +24,7 @@ window.TuTien.Hotbar = {
     fields: 'Bách Nghệ Tiên Đạo — Đan • Khí • Phù • Điền',
     inventory: 'Túi Trữ Vật — Pháp Bảo • Đan Dược • Phù Văn • Linh Thảo',
     prestige: 'Đài Luân Hồi — Chuyển Sinh & Nghịch Thiên Đổi Mệnh',
-    roadmap: 'Thiên Địa Đạo Lộ — 100 Cảnh Giới Tu Chân',
+    roadmap: 'Thiên Địa Đạo Lộ — 140 Cảnh Giới Tu Chân (28 Đại Cảnh Giới)',
     profile: 'Ngọc Giản Mệnh Cách — Hồ Sơ Nhân Vật & Chỉ Số Chiến Đấu',
     system: 'Động Phủ Bảo Điển — Thành Tựu & Cài Đặt'
   },
@@ -82,6 +82,7 @@ window.TuTien.Hotbar = {
 
       if (window.TuTien.Tribulation && window.TuTien.Tribulation.active) return;
       if (window.TuTien.CraftingMinigame && window.TuTien.CraftingMinigame.active) return;
+      if (window.TuTien.Forge && window.TuTien.Forge.isForging()) return;
 
       if (e.key === 'Escape') {
         if (window.TuTien.Expedition && window.TuTien.Expedition.isOpen) {
@@ -140,6 +141,18 @@ window.TuTien.Hotbar = {
   },
 
   openPanel(panelId) {
+    if (window.TuTien.AlchemyUI && window.TuTien.AlchemyUI.isOpen) {
+      const okA = window.TuTien.AlchemyUI.requestClose(() => { window.TuTien.AlchemyUI.forceClose(); this.openPanel(panelId); });
+      if (!okA) return;
+    }
+    if (window.TuTien.TalismanUI && window.TuTien.TalismanUI.isOpen) {
+      const okT = window.TuTien.TalismanUI.requestClose(() => { window.TuTien.TalismanUI.forceClose(); this.openPanel(panelId); });
+      if (!okT) return;
+    }
+    if (window.TuTien.CraftUI && window.TuTien.CraftUI.isOpen) {
+      const canLeave = window.TuTien.CraftUI.requestClose(() => { window.TuTien.CraftUI.forceClose(); this.openPanel(panelId); });
+      if (!canLeave) return;
+    }
     if (!this.menuExpanded) {
       this.toggleMainMenu(true);
     }

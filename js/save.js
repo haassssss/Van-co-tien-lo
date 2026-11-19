@@ -148,6 +148,10 @@ window.TuTien.Save = {
         });
       }
     }
+    if (window.TuTien.Shop && window.TuTien.Shop.ensureState) {
+      window.TuTien.Shop.ensureState();
+      window.TuTien.Shop.syncCycle();
+    }
     window.TuTien.State.resetRuntime();
 
     if (checkOffline && parsed.lastSavedAt) {

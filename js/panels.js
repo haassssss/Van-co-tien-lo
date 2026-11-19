@@ -8,6 +8,7 @@ window.TuTien = window.TuTien || {};
 
 window.TuTien.Panels = {
   activeGuideTab: 'fields',
+  activeUpgradeSubTab: 'cultivate',
 
   isDetailedMode() {
     const st = window.TuTien.State;
@@ -38,6 +39,21 @@ window.TuTien.Panels = {
     const listEl = document.getElementById('upgrades-list');
     if (!listEl) return;
 
+    const subTabBar = `
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="subtab-upg-cultivate" class="btn-ancient-sm ${this.activeUpgradeSubTab === 'cultivate' ? 'affordable' : ''}">📖 Công Pháp Tu Luyện</button>
+        <button id="subtab-upg-combat" class="btn-ancient-sm ${this.activeUpgradeSubTab === 'combat' ? 'affordable' : ''}">⚔️ Chiến Kỹ & Công Pháp Chiến Đấu (4 Ô)</button>
+      </div>
+    `;
+
+    if (this.activeUpgradeSubTab === 'combat') {
+      listEl.innerHTML = subTabBar + '<div id="combat-tech-subcontainer"></div>';
+      document.getElementById('subtab-upg-cultivate').addEventListener('pointerdown', e => { e.preventDefault(); this.activeUpgradeSubTab = 'cultivate'; this.renderUpgradesPanel(); });
+      document.getElementById('subtab-upg-combat').addEventListener('pointerdown', e => { e.preventDefault(); this.activeUpgradeSubTab = 'combat'; this.renderUpgradesPanel(); });
+      if (window.TuTien.LoadoutUI) window.TuTien.LoadoutUI.renderInto(document.getElementById('combat-tech-subcontainer'));
+      return;
+    }
+
     const Utils = window.TuTien.Utils;
     const State = window.TuTien.State;
     const Upgrades = window.TuTien.Upgrades;
@@ -47,7 +63,7 @@ window.TuTien.Panels = {
     const realmMaxCap = Upgrades.getMaxLevelForCurrentRealm(window.TuTien.UPGRADES[0]);
     const showDetail = this.isDetailedMode();
 
-    listEl.innerHTML = `
+    listEl.innerHTML = subTabBar + `
       <div class="scroll-box compact-banner-row">
         <span style="color:${factionCfg.color};font-weight:700;">
           ${factionCfg.icon} ${factionCfg.name} (${factionCfg.title})
@@ -58,6 +74,10 @@ window.TuTien.Panels = {
       </div>
     `;
 
+    const tbC = document.getElementById('subtab-upg-cultivate');
+    const tbK = document.getElementById('subtab-upg-combat');
+    if (tbC) tbC.addEventListener('pointerdown', e => { e.preventDefault(); this.activeUpgradeSubTab = 'cultivate'; this.renderUpgradesPanel(); });
+    if (tbK) tbK.addEventListener('pointerdown', e => { e.preventDefault(); this.activeUpgradeSubTab = 'combat'; this.renderUpgradesPanel(); });
     window.TuTien.UPGRADES.forEach(u => {
       const unlocked = Upgrades.isUnlocked(u);
       const level = State.getUpgradeLevel(u.id);
@@ -123,10 +143,67 @@ window.TuTien.Panels = {
 
       const buyBtn = card.querySelector(`#btn-buy-${u.id}`);
       if (buyBtn) {
+        let holdTimer = null;
+        let holdSteps = 0;
+        const stopHold = () => {
+          if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+          }
+          holdSteps = 0;
+        };
+
+        const runHoldUpgrade = () => {
+          // Mua nhanh hơn khi giữ lâu (sau 12 nhịp mua nhiều tầng mỗi nhịp)
+          const batch = holdSteps >= 18 ? 3 : holdSteps >= 10 ? 2 : 1;
+          let boughtAny = false;
+          for (let b = 0; b < batch; b++) {
+            if (Upgrades.buyUpgradeSilent ? Upgrades.buyUpgradeSilent(u.id) : Upgrades.buyUpgrade(u.id)) {
+              boughtAny = true;
+            } else {
+              break;
+            }
+          }
+          if (!boughtAny) {
+            stopHold();
+            this.renderUpgradesPanel();
+            return;
+          }
+
+          // Cập nhật nhanh giao diện thẻ đang giữ mà không phá hủy nút bấm
+          const newLvl = State.getUpgradeLevel(u.id);
+          const newMax = Upgrades.getMaxLevelForCurrentRealm(u);
+          const newCost = Upgrades.getUpgradeCost(u);
+          const newCanBuy = Upgrades.canAfford(u);
+          const newCapped = Upgrades.isCappedByCurrentRealm(u);
+          const newGlobalMax = u.maxLevel !== null && u.maxLevel !== undefined && newLvl >= u.maxLevel;
+
+          const badgeEl = card.querySelector('.jade-badge');
+          if (badgeEl) badgeEl.textContent = `Tầng ${newLvl}/${newMax}${newCapped && !newGlobalMax ? ' • 🔒 Trần' : ''}`;
+          const effEl = card.querySelectorAll('.mc-marquee-text')[1];
+          if (effEl) effEl.textContent = u.formatEffect(newLvl, qObj.mult);
+          const mainTxt = buyBtn.querySelector('.btn-main-txt');
+          const subTxt = buyBtn.querySelector('.btn-sub-txt');
+          if (mainTxt) mainTxt.textContent = newGlobalMax ? 'VIÊN MÃN' : newCapped ? 'ĐỘT PHÁ' : 'Lĩnh Ngộ';
+          if (subTxt) subTxt.textContent = newGlobalMax ? 'Tối Đa' : newCapped ? 'Đạt trần' : Utils.formatNumber(newCost) + ' LK';
+          buyBtn.classList.toggle('affordable', newCanBuy);
+          buyBtn.disabled = !newCanBuy;
+          if (window.TuTien.UI) window.TuTien.UI.updateHeaderAndStats();
+
+          holdSteps += 1;
+          // Đè càng lâu tốc độ nâng càng nhanh: 240ms -> 150ms -> 90ms -> 50ms -> 28ms
+          const nextDelay = Math.max(28, Math.round(240 * Math.pow(0.82, holdSteps)));
+          holdTimer = setTimeout(runHoldUpgrade, nextDelay);
+        };
+
         buyBtn.addEventListener('pointerdown', e => {
           e.preventDefault();
-          Upgrades.buyUpgrade(u.id);
+          stopHold();
+          runHoldUpgrade();
         });
+        buyBtn.addEventListener('pointerup', () => { stopHold(); this.renderUpgradesPanel(); });
+        buyBtn.addEventListener('pointercancel', stopHold);
+        buyBtn.addEventListener('pointerleave', stopHold);
       }
 
       const refBtn = card.querySelector(`#btn-refine-${u.id}`);
@@ -161,113 +238,17 @@ window.TuTien.Panels = {
     const State = window.TuTien.State;
     const Fields = window.TuTien.Fields;
     const Inv = window.TuTien.Inventory;
+    const Forge = window.TuTien.Forge;
+    if (Forge) Forge.ensureForgeState();
+    if (window.TuTien.Alchemy) window.TuTien.Alchemy.ensureAlchemyState();
+    if (window.TuTien.Talisman) window.TuTien.Talisman.ensureTalismanState();
+
     const fieldsState = State.data.fields;
-    const alchemyRank = Fields.getFieldState("luyen_dan").rank;
     const tendCost = Math.max(30, Math.round(window.TuTien.Cultivate.getBasePassiveRate() * 7));
-    const talismanQiCost = Math.max(40, Math.round(window.TuTien.Cultivate.getBasePassiveRate() * 6));
     const showDetail = this.isDetailedMode();
+    const miningState = (State.data && State.data.mining) || { enabled: true, totalMined: 0 };
 
-    const pillCdMax = Inv.getCraftCooldownSec("pill");
-    const artCdMax = Inv.getCraftCooldownSec("artifact");
-    const talCdMax = Inv.getCraftCooldownSec("talisman");
-
-    const pillRem = Inv.getRemainingCooldownSec("pill");
-    const artRem = Inv.getRemainingCooldownSec("artifact");
-    const talRem = Inv.getRemainingCooldownSec("talisman");
-
-    const herbSummaryHtml = window.TuTien.HERB_TYPES.map(h => {
-      const cnt = Inv.getHerbCountById(h.id);
-      return `<span class="herb-chip" title="${h.desc}">${h.icon} ${h.name}: <strong>${cnt}</strong></span>`;
-    }).join("");
-
-    const forgeMatSummaryHtml = (window.TuTien.FORGE_MATERIALS || []).map(m => {
-      const cnt = Inv.getMaterialCountById(m.id);
-      return `<span class="herb-chip" style="border-color:rgba(227,184,102,0.55)" title="${m.desc}">${m.icon} ${m.shortName}: <strong>${cnt}</strong></span>`;
-    }).join("");
-
-    const artifactsHtml = (window.TuTien.ARTIFACT_RECIPES || []).map(ar => {
-      const qiCost = Fields.getForgeArtifactCost(ar.id);
-      const hasMats = Inv.canAffordMaterials(ar.materials);
-      const canForge = artRem <= 0 && hasMats && State.data.qi >= qiCost;
-      const reqStr = ar.materials
-        .map(m => `${m.count} ${m.icon} ${m.name} (${Inv.getMaterialCountById(m.id)})`)
-        .join(" + ");
-
-      return `
-        <div class="ancient-subrow">
-          <div class="subrow-info">
-            <div class="jade-card-title">
-              ${ar.icon} ${ar.name}
-              <span class="jade-badge">Pháp Bảo • ${artCdMax}s</span>
-            </div>
-            <div class="jade-card-desc">
-              <span style="color:var(--jade-bright)">${ar.shortDesc}</span> • Cần: <strong>${reqStr}</strong> + ${Utils.formatNumber(qiCost)} LK
-            </div>
-          </div>
-          <div class="subrow-actions">
-            <button class="btn-ancient-sm btn-forge-recipe ${canForge ? "affordable" : ""}" data-artifact="${ar.id}" ${artRem > 0 ? "disabled" : ""}>
-              ${artRem > 0 ? `${artRem.toFixed(1)}s` : "🔨 Rèn"}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    const pillsHtml = window.TuTien.PILL_RECIPES.map(r => {
-      const recipeUnlocked = Fields.isPillRecipeUnlocked(r);
-      const rankUnlocked = alchemyRank >= r.minRank;
-      const qiCost = Math.round(60 * Math.pow(1.8, r.minRank - 1));
-      const haveHerbs = Inv.getHerbCountById(r.requiredHerbId);
-      const canCraft =
-        recipeUnlocked && rankUnlocked && pillRem <= 0 && haveHerbs >= r.herbCost && State.data.qi >= qiCost;
-
-      const summaryLine = recipeUnlocked
-        ? `<span style="color:var(--jade-bright)">${r.getEffectText(alchemyRank)}</span> • Cần: <strong>${r.herbCost} ${r.requiredHerbName}</strong> (${haveHerbs}) + ${Utils.formatNumber(qiCost)} LK`
-        : `🔒 ??? — Khám phá Bí Cảnh hoặc đánh Boss để mở khóa`;
-
-      return `
-        <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
-          <div class="subrow-info">
-            <div class="jade-card-title">
-              ${recipeUnlocked ? `${r.icon} ${r.name}` : "🔒 ???"}
-              <span class="jade-badge">${recipeUnlocked ? `${r.isPermanentStat ? "🌟 Vĩnh Viễn" : "⏱️ Tạm Thời"} • ${pillCdMax}s` : "???"}</span>
-            </div>
-            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${r.description} — ` : ""}${summaryLine}</div>
-          </div>
-          <div class="subrow-actions">
-            <button class="btn-ancient-sm btn-craft-pill ${canCraft ? "affordable" : ""}" data-pill="${r.id}" ${!recipeUnlocked || !rankUnlocked || pillRem > 0 ? "disabled" : ""}>
-              ${!recipeUnlocked ? "🔒 Chưa Mở" : !rankUnlocked ? `Phẩm ${r.minRank}` : pillRem > 0 ? `${pillRem.toFixed(1)}s` : "🔥 Luyện"}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    const talismansHtml = window.TuTien.TALISMAN_RECIPES.map(t => {
-      const recipeUnlocked = Fields.isTalismanRecipeUnlocked(t);
-      const haveHerbs = Inv.getHerbCountById(t.requiredHerbId);
-      const canDraw =
-        recipeUnlocked && talRem <= 0 && haveHerbs >= t.herbCost && State.data.qi >= talismanQiCost;
-
-      const summaryLine = recipeUnlocked
-        ? `<span style="color:var(--jade-bright)">${t.shortDesc || t.description}</span> • Cần: <strong>${t.herbCost} ${t.requiredHerbName}</strong> (${haveHerbs}) + ${Utils.formatNumber(talismanQiCost)} LK`
-        : `🔒 ??? — Khám phá Bí Cảnh hoặc đánh Boss để mở khóa`;
-
-      return `
-        <div class="ancient-subrow ${!recipeUnlocked ? "locked-card" : ""}">
-          <div class="subrow-info">
-            <div class="jade-card-title">${recipeUnlocked ? `${t.icon} ${t.name}` : "🔒 ???"} <span class="jade-badge">${recipeUnlocked ? `${talCdMax}s` : "???"}</span></div>
-            <div class="jade-card-desc">${showDetail && recipeUnlocked ? `${t.description} — ` : ""}${summaryLine}</div>
-          </div>
-          <div class="subrow-actions">
-            <button class="btn-ancient-sm btn-draw-talisman-recipe ${canDraw ? "affordable" : ""}" data-talisman="${t.id}" ${!recipeUnlocked || talRem > 0 ? "disabled" : ""}>
-              ${!recipeUnlocked ? "🔒 Chưa Mở" : talRem > 0 ? `${talRem.toFixed(1)}s` : "📜 Họa Phù"}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join("");
-
+    // 8 Lĩnh Vực hiển thị gọn gàng dạng lưới 2 cột hiện đại
     const fieldCardsHtml = window.TuTien.FIELDS.map(fDef => {
       const fState = Fields.getFieldState(fDef.id);
       const talentObj = Fields.getFieldTalentObj(fDef.id);
@@ -276,23 +257,17 @@ window.TuTien.Panels = {
       const expPct = fState.rank >= 9 ? 100 : Utils.clamp((fState.exp / reqExp) * 100, 0, 100);
       const expRate = Fields.getFieldExpRatePerSec(fDef.id);
       const rankTitle = Fields.getFieldRankTitle(fDef, fState.rank);
-      const cdReducePct = Math.round(
-        Math.min(0.65, (fState.rank - 1) * window.TuTien.CONFIG.crafting.cooldownReductionPerRank) *
-          100
-      );
 
       return `
-        <div class="jade-card ${isActive ? "jade-card-active" : ""}">
+        <div class="jade-card compact-field-card ${isActive ? "jade-card-active" : ""}">
           <div class="jade-card-icon">${fDef.icon}</div>
           <div class="jade-card-body">
             <div class="jade-card-head">
-              <span class="jade-card-title">${fDef.name} — <small>${rankTitle}</small></span>
-              <span class="jade-badge" style="color:${talentObj.color}">
-                ${talentObj.name} (x${talentObj.multiplier})
-              </span>
+              <span class="jade-card-title">${fDef.name} <small style="color:var(--bronze-light)">${rankTitle}</small></span>
+              <span class="jade-badge" style="color:${talentObj.color}">${talentObj.name}</span>
             </div>
             ${showDetail ? `<p class="jade-card-desc">${fDef.description}</p>` : ""}
-            <p class="jade-card-effect">${fDef.effectSummary(fState.rank)} • -${cdReducePct}% Hồi</p>
+            <p class="jade-card-effect" style="font-size:0.75rem;">${fDef.effectSummary(fState.rank)}</p>
             <div class="ancient-exp-row">
               <div class="ancient-bar-track">
                 <div id="field-exp-fill-${fDef.id}" class="ancient-bar-fill" style="width:${expPct.toFixed(1)}%"></div>
@@ -302,90 +277,94 @@ window.TuTien.Panels = {
               </span>
             </div>
           </div>
-          <button class="btn-ancient btn-toggle-field ${isActive ? "affordable" : ""}" data-field="${fDef.id}">
-            <span class="btn-main-txt">${isActive ? "Đang Luyện" : "Tu Luyện"}</span>
-            <span class="btn-sub-txt">+${expRate.toFixed(1)} EXP/s</span>
+          <button class="btn-ancient btn-toggle-field ${isActive ? "affordable" : ""}" data-field="${fDef.id}" style="min-width:86px;padding:6px 8px;">
+            <span class="btn-main-txt">${isActive ? "Đang Luyện" : "Luyện"}</span>
+            <span class="btn-sub-txt">+${expRate.toFixed(1)}/s</span>
           </button>
         </div>
       `;
     }).join("");
 
     container.innerHTML = `
-      <div class="scroll-box">
-        <div class="workshop-header-row" style="margin-bottom:6px;">
-          <div style="flex:1;">
-            <div class="muted-label" style="margin-bottom:3px;">🌿 Kho Linh Thảo Luyện Đan:</div>
-            <div class="herb-chips-row">${herbSummaryHtml}</div>
-            <div class="muted-label" style="margin:6px 0 3px;">⛏️ Kho Nguyên Liệu Rèn Pháp Bảo (Thu thập khi săn Quái / Xuất Quan):</div>
-            <div class="herb-chips-row">${forgeMatSummaryHtml}</div>
+      <!-- 1. XƯỞNG BÁCH NGHỆ (3 CƠ CHẾ CHẾ TÁC XÁC ĐỊNH) -->
+      <div class="craft-hub-grid">
+        <button id="btn-open-new-forge" class="craft-hub-card forge-hub">
+          <div class="chc-icon">🔥</div>
+          <div class="chc-info">
+            <strong>Lò Rèn Pháp Bảo</strong>
+            <span>Khống Hỏa F/G/H • 16 Mẫu • Đồ Phổ</span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <button id="btn-open-bag-shortcut" class="btn-ancient-sm affordable">
-              🎒 Túi Đồ (${Inv.getBagData().items.length})
-            </button>
-            <button id="btn-tend-field" class="btn-ancient-sm affordable">
-              🌿 Tưới Linh Tuyền (${Utils.formatNumber(tendCost)} LK)
-            </button>
+        </button>
+
+        <button id="btn-open-new-alchemy" class="craft-hub-card alchemy-hub">
+          <div class="chc-icon">⚗️</div>
+          <div class="chc-info">
+            <strong>Đan Lô Luyện Đan</strong>
+            <span>Hòa Dược & Ngưng Đan • 0–3 Đan Vân</span>
           </div>
-        </div>
+        </button>
 
-        <div class="pills-list-wrap" style="margin-top:8px;border-top:1px solid rgba(212,175,55,0.2);padding-top:6px;">
-          <div class="muted-label" style="margin-bottom:4px;">🔨 ĐOÁN TẠO PHÁP BẢO (Dùng Sắt, Đá, Gỗ, Vàng):</div>
-          ${artifactsHtml}
-        </div>
-
-        <div class="pills-list-wrap" style="margin-top:8px;border-top:1px solid rgba(212,175,55,0.2);padding-top:6px;">
-          <div class="muted-label" style="margin-bottom:4px;">⚗️ ĐAN PHÒNG (9 Đan Phương):</div>
-          ${pillsHtml}
-        </div>
-
-        <div class="pills-list-wrap" style="margin-top:8px;border-top:1px solid rgba(212,175,55,0.2);padding-top:6px;">
-          <div class="muted-label" style="margin-bottom:4px;">📜 PHÙ ĐƯỜNG (6 Phù Phương):</div>
-          ${talismansHtml}
-        </div>
+        <button id="btn-open-new-talisman" class="craft-hub-card talisman-hub">
+          <div class="chc-icon">📜</div>
+          <div class="chc-info">
+            <strong>Phù Án Luyện Phù</strong>
+            <span>Họa Phù Canvas • Máu Yêu Thú</span>
+          </div>
+        </button>
       </div>
 
-      <h4 class="ancient-section-title">🛠️ Bách Nghệ Tu Luyện Phụ</h4>
-      <div class="jade-cards-stack">
+      <!-- 2. THANH THU THẬP NHANH GỌN -->
+      <div class="fields-quick-strip">
+        <button id="btn-toggle-afk-mining" class="btn-ancient-sm ${miningState.enabled ? "affordable" : ""}">
+          ⛏️ Khai Khoáng AFK: ${miningState.enabled ? "Đang Chạy" : "Tắt"} (${miningState.totalMined || 0})
+        </button>
+        <button id="btn-tend-herb-garden" class="btn-ancient-sm ${State.data.qi >= tendCost ? "affordable" : ""}">
+          🌿 Tưới Linh Tuyền (${Utils.formatNumber(tendCost)} LK)
+        </button>
+        <button id="btn-open-bag-from-fields" class="btn-ancient-sm affordable">
+          🎒 Túi Trữ Vật (${Inv.getBagData().items.length})
+        </button>
+      </div>
+
+      <!-- 3. 8 LĨNH VỰC BÁCH NGHỆ (LƯỚI 2 CỘT GỌN ĐẸP) -->
+      <div class="fields-2col-grid">
         ${fieldCardsHtml}
       </div>
     `;
 
-    const btnBag = document.getElementById("btn-open-bag-shortcut");
-    if (btnBag) {
-      btnBag.addEventListener("pointerdown", e => {
-        e.preventDefault();
-        if (window.TuTien.Hotbar) window.TuTien.Hotbar.openPanel("inventory");
-      });
-    }
-
-    const btnTend = document.getElementById("btn-tend-field");
-    if (btnTend) {
-      btnTend.addEventListener("pointerdown", e => {
-        e.preventDefault();
-        Fields.tendSpiritField();
-      });
-    }
-
-    container.querySelectorAll(".btn-forge-recipe").forEach(btn => {
-      btn.addEventListener("pointerdown", e => {
-        e.preventDefault();
-        Fields.forgeArtifact(btn.getAttribute("data-artifact"));
-      });
+    document.getElementById("btn-open-new-forge").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (window.TuTien.Hotbar) window.TuTien.Hotbar.closeAll();
+      if (window.TuTien.CraftUI) window.TuTien.CraftUI.open();
+    });
+    document.getElementById("btn-open-new-alchemy").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (window.TuTien.Hotbar) window.TuTien.Hotbar.closeAll();
+      if (window.TuTien.AlchemyUI) window.TuTien.AlchemyUI.open();
+    });
+    document.getElementById("btn-open-new-talisman").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (window.TuTien.Hotbar) window.TuTien.Hotbar.closeAll();
+      if (window.TuTien.TalismanUI) window.TuTien.TalismanUI.open();
     });
 
-    container.querySelectorAll(".btn-craft-pill").forEach(btn => {
-      btn.addEventListener("pointerdown", e => {
-        e.preventDefault();
-        Fields.craftPill(btn.getAttribute("data-pill"));
-      });
+    document.getElementById("btn-toggle-afk-mining").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (State.data && State.data.mining) {
+        State.data.mining.enabled = !State.data.mining.enabled;
+        if (window.TuTien.Save) window.TuTien.Save.saveToLocal();
+        this.renderFieldsPanel();
+      }
     });
 
-    container.querySelectorAll(".btn-draw-talisman-recipe").forEach(btn => {
-      btn.addEventListener("pointerdown", e => {
-        e.preventDefault();
-        Fields.craftTalisman(btn.getAttribute("data-talisman"));
-      });
+    document.getElementById("btn-open-bag-from-fields").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (window.TuTien.Hotbar) window.TuTien.Hotbar.openPanel("inventory");
+    });
+
+    document.getElementById("btn-tend-herb-garden").addEventListener("pointerdown", e => {
+      e.preventDefault();
+      Fields.tendHerbGarden();
     });
 
     container.querySelectorAll(".btn-toggle-field").forEach(btn => {
@@ -651,7 +630,7 @@ window.TuTien.Panels = {
         <p class="jade-card-desc" style="margin:6px 0;">
           ${canPrestige
             ? `Nhận <strong>+${Utils.formatNumber(pendingDaoVan)} Đạo Vận</strong> • Chọn lại Chính/Ma Đạo • Giữ ${retainPct}% EXP Bách Nghệ, chỉ số Đan vĩnh viễn & Bí Tịch.`
-            : `Đạt <strong>${minRealm.fullName}</strong> (Tầng ${minRealm.orderNumber}/100) để mở Luân Hồi.`}
+            : `Đạt <strong>${minRealm.fullName}</strong> (Tầng ${minRealm.orderNumber}/${window.TuTien.REALMS.length}) để mở Luân Hồi.`}
         </p>
 
         <button id="btn-do-prestige" class="btn-ancient-wide ${canPrestige ? 'ready' : ''}" ${!canPrestige ? 'disabled' : ''}>

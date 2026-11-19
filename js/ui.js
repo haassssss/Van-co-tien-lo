@@ -152,14 +152,64 @@ window.TuTien.UI = {
       });
     }
 
+    const xqFlyout = document.getElementById('xuat-quan-flyout');
+    const btnXqWorld = document.getElementById('btn-xq-world');
+    const btnXqMarket = document.getElementById('btn-xq-market');
     if (this.els.btnQuickExpedition) {
       this.els.btnQuickExpedition.addEventListener('pointerdown', e => {
         e.preventDefault();
-        if (window.TuTien.Expedition) {
+        e.stopPropagation();
+        if (xqFlyout) {
+          xqFlyout.classList.toggle('hidden');
+        } else if (window.TuTien.Expedition) {
           window.TuTien.Expedition.openModal();
         }
       });
     }
+    if (btnXqWorld) {
+      btnXqWorld.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (xqFlyout) xqFlyout.classList.add('hidden');
+        if (window.TuTien.Expedition) window.TuTien.Expedition.openModal();
+      });
+    }
+    const btnXqSect = document.getElementById('btn-xq-sect');
+    const btnHotbarShop = document.getElementById('btn-hotbar-shop');
+    if (btnXqMarket) {
+      btnXqMarket.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (xqFlyout) xqFlyout.classList.add('hidden');
+        if (window.TuTien.ShopUI) window.TuTien.ShopUI.open();
+      });
+    }
+    if (btnXqSect) {
+      btnXqSect.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (xqFlyout) xqFlyout.classList.add('hidden');
+        this.showToast('🏯 Tông Môn đang bế quan kiến thiết, sẽ sớm khai sơn thu nhận đệ tử!', 'info');
+      });
+    }
+    if (btnHotbarShop) {
+      btnHotbarShop.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (window.TuTien.ShopUI) window.TuTien.ShopUI.open();
+      });
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === '8' && !e.target.closest('input, textarea')) {
+        if (window.TuTien.ShopUI) window.TuTien.ShopUI.open();
+      }
+    });
+    document.addEventListener('pointerdown', e => {
+      if (xqFlyout && !xqFlyout.classList.contains('hidden')) {
+        if (!e.target.closest('.xuat-quan-wrap')) {
+          xqFlyout.classList.add('hidden');
+        }
+      }
+    });
 
     if (this.els.btnToggleSound) {
       this.els.btnToggleSound.addEventListener('pointerdown', e => {
@@ -408,7 +458,15 @@ window.TuTien.UI = {
     this.updateAutoCompanionMood();
   },
 
+  updateShopDot() {
+    const dot = document.getElementById('dot-shop');
+    if (dot && window.TuTien.Shop) {
+      dot.classList.toggle('visible', window.TuTien.Shop.hasUnreadNotification());
+    }
+  },
+
   updateAll() {
+    this.updateShopDot();
     this.updateThemeAndRealmInfo();
     this.updateCharacterArtwork();
     this.updateRealtimeHUD();
@@ -443,7 +501,26 @@ window.TuTien.UI = {
 
     this.els.macroRealmBadge.textContent = `${genderIcon} ${daoName} • ${fIcon} ${factionCfg.name} • ${realm.macroRealm}`;
     this.els.realmName.textContent = realm.fullName;
-    this.els.realmTier.textContent = `${realm.tierLabel} • ${realm.titlePrefix}`;
+    const fullTierText = `${realm.tierLabel} • ${realm.titlePrefix}`;
+    if (this.els.realmTier) {
+      let track = this.els.realmTier.querySelector('.plaque-tier-track');
+      if (!track) {
+        this.els.realmTier.innerHTML = '<span class="plaque-tier-track"></span>';
+        track = this.els.realmTier.querySelector('.plaque-tier-track');
+      }
+      if (track.textContent !== fullTierText) {
+        track.textContent = fullTierText;
+        track.classList.remove('is-marquee');
+        track.style.removeProperty('--marquee-shift');
+        requestAnimationFrame(() => {
+          const overflow = track.scrollWidth - this.els.realmTier.clientWidth;
+          if (overflow > 4) {
+            track.style.setProperty('--marquee-shift', `-${overflow + 8}px`);
+            track.classList.add('is-marquee');
+          }
+        });
+      }
+    }
 
     if (this.els.aptitudeBadge) {
       this.els.aptitudeBadge.className = `jade-tag ${apt.cssClass}`;
@@ -464,6 +541,15 @@ window.TuTien.UI = {
   },
 
   updateRealtimeHUD() {
+    const buffHud = document.getElementById('active-timed-buffs-hud');
+    if (buffHud && window.TuTien.Alchemy) {
+      const list = window.TuTien.Alchemy.getActiveBuffSummary().list;
+      if (list.length === 0) {
+        buffHud.innerHTML = '';
+      } else {
+        buffHud.innerHTML = list.map(b => `<span class="timed-buff-chip" style="border-color:${b.color}">${b.icon} ${b.name} <strong>${Math.ceil(b.remainingMs / 1000)}s</strong></span>`).join('');
+      }
+    }
     const Utils = window.TuTien.Utils;
     const State = window.TuTien.State;
     const Cultivate = window.TuTien.Cultivate;
@@ -538,7 +624,7 @@ window.TuTien.UI = {
     this.els.btnBreakthrough.classList.toggle('ready', !!canBreak);
 
     if (!nextRealm) {
-      this.els.breakthroughChanceText.textContent = 'Đã đạt Đỉnh Phong Vạn Cổ Chí Tôn (100/100)';
+      this.els.breakthroughChanceText.textContent = 'Đã đạt Đỉnh Phong Vạn Cổ Chí Tôn (100/${window.TuTien.REALMS.length})';
       this.els.btnBreakthrough.textContent = '✨ Viên Mãn';
     } else {
       const chancePct = Math.round(Breakthrough.getSuccessChance() * 100);

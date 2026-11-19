@@ -395,73 +395,138 @@ window.TuTien.Expedition = {
     return { x: bestX, y: bestY };
   },
 
-  spawnAllRandomMobs() {
-    const spots = [];
-    const shuffledPool = [...this.MOB_POOL_DEFS].sort(() => Math.random() - 0.5);
-    const chosenDefs = shuffledPool.slice(0, this.ACTIVE_MOB_COUNT).sort((a, b) => a.realmLevel - b.realmLevel);
+  mapRefreshRemainingMs: 300000,
 
-    chosenDefs.forEach((def, idx) => {
-      const coord = this.generateRandomCoord(spots, def.realmLevel);
+  isPlayerDeadCooldown() {
+    const until = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.expeditionDeathUntil) || 0;
+    return Math.max(0, until - Date.now());
+  },
+
+  spawnAllRandomMobs() {
+    const Planes = window.TuTien.Planes;
+    const plane = Planes ? Planes.getCurrentPlane() : { id: 'tan_thu_gioi' };
+    const pool = Planes ? Planes.getMonstersForPlane(plane.id) : [];
+    const spots = [];
+
+    pool.forEach((mDef, idx) => {
+      const mStats = window.TuTien.getMonsterStatsForRealm(mDef);
+      const realmObj = (window.TuTien.REALMS && window.TuTien.REALMS[mDef.canhGioiIdx || 0]) || { fullName: 'Thối Thể - Sơ Kỳ' };
+      const coord = this.generateRandomCoord(spots, Math.min(9, Math.floor((mDef.canhGioiIdx || 0) / 5) + 1));
       spots.push({
-        ...def,
-        id: `rand_mob_${idx}_${Date.now()}`,
+        ...mDef,
+        id: `${mDef.id}_${idx}`,
+        name: mDef.ten,
+        realm: realmObj.fullName,
+        maxHp: mStats.maxHp,
+        currentHp: mStats.maxHp,
+        maxMp: 100,
+        currentMp: 100,
+        attack: mStats.attack,
+        speed: mStats.speed,
+        respawnSec: 5,
         x: coord.x,
         y: coord.y,
-        currentHp: def.maxHp,
-        currentMp: def.maxMp,
         isDead: false,
         respawnRemainingMs: 0
       });
     });
 
     this.mobSpots = spots;
+    const refreshSec = (window.TuTien.CONFIG && window.TuTien.CONFIG.combatV2 && window.TuTien.CONFIG.combatV2.mapRefreshSec) || 300;
+    this.mapRefreshRemainingMs = refreshSec * 1000;
   },
 
   respawnSingleMobAtRandomSpot(mob, index) {
-    const candidates = this.MOB_POOL_DEFS.filter(d => Math.abs(d.realmLevel - mob.realmLevel) <= 1);
-    const newDef = candidates[Math.floor(Math.random() * candidates.length)] || mob;
     const otherSpots = this.mobSpots.filter((_, i) => i !== index);
-    const newCoord = this.generateRandomCoord(otherSpots, newDef.realmLevel);
-
-    Object.assign(mob, {
-      ...newDef,
-      id: mob.id,
-      x: newCoord.x,
-      y: newCoord.y,
-      currentHp: newDef.maxHp,
-      currentMp: newDef.maxMp,
-      isDead: false,
-      respawnRemainingMs: 0
-    });
+    const newCoord = this.generateRandomCoord(otherSpots, Math.min(9, Math.floor((mob.canhGioiIdx || 0) / 5) + 1));
+    mob.x = newCoord.x;
+    mob.y = newCoord.y;
+    mob.currentHp = mob.maxHp;
+    mob.isDead = false;
+    mob.respawnRemainingMs = 0;
   },
 
   rollSecretRealmTier() {
-    const totalWeight = this.SECRET_REALM_TIERS.reduce((s, t) => s + t.weight, 0);
-    let r = Math.random() * totalWeight;
-    for (const t of this.SECRET_REALM_TIERS) {
-      r -= t.weight;
-      if (r <= 0) return t;
+    // Vị diện thấp cực khó ra Bí Cảnh cấp cao; vị diện càng cao Bí Cảnh hiếm & đồ xịn càng nhiều!
+    const plane = window.TuTien.Planes ? window.TuTien.Planes.getCurrentPlane() : { id: 'tan_thu_gioi' };
+    const planeIdx = Math.max(0, (window.TuTien.PLANES || []).findIndex(pl => pl.id === plane.id));
+    const weightsByPlane = [
+      [68, 25, 5.8, 1.0, 0.2],   // Tân Thủ Giới: Cấp 4-5 cực hiếm!
+      [32, 38, 22,  6.5, 1.5],   // Huyền Linh Giới
+      [10, 22, 36,  24,  8.0],   // Kiếp Vân Giới
+      [3,  10, 27,  38,  22.0]   // Hồng Mông Giới: Bí Cảnh Cực Phẩm / Tiên Phẩm rất nhiều!
+    ];
+    const wArr = weightsByPlane[planeIdx] || weightsByPlane[0];
+    const total = wArr.reduce((s, w) => s + w, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < this.SECRET_REALM_TIERS.length; i++) {
+      r -= wArr[i];
+      if (r <= 0) return this.SECRET_REALM_TIERS[i];
     }
     return this.SECRET_REALM_TIERS[0];
   },
 
   getCustomEntityBadgeHTML(mob, scaleClass = '') {
-    if (mob.svgKey === 'dragon_boss' || mob.entityType === 'boss') {
-      return `
-        <div class="xianxia-token dragon-boss-token ${scaleClass}" style="--token-accent:#facc15">
-          <svg class="token-frame-svg" viewBox="0 0 64 64">
-            <polygon points="32,1 55,10 63,32 55,54 32,63 9,54 1,32 9,10"
-                     fill="rgba(42, 8, 12, 0.96)" stroke="#facc15" stroke-width="2.5"/>
-            <circle cx="32" cy="32" r="24" fill="none" stroke="#f43f5e" stroke-width="1.4" stroke-dasharray="4 2"/>
-            <!-- Biểu tượng Long Vương Cổ Phong -->
+    if (mob.svgKey === 'dragon_boss' || mob.svgKey === 'thunder_boss' || mob.svgKey === 'ice_boss' || mob.svgKey === 'chaos_boss' || mob.entityType === 'boss') {
+      const bossStyles = {
+        dragon_boss: {
+          accent: '#facc15', fill: 'rgba(42, 8, 12, 0.96)', stroke: '#facc15', ring: '#f43f5e',
+          pillBg: '#7f1d1d', pillBorder: '#fde047', pillColor: '#fef08a', label: '🐉 BOSS',
+          art: `
             <path d="M18,16 L24,25 L20,30 M46,16 L40,25 L44,30" stroke="#fde047" stroke-width="2.2" fill="none" stroke-linecap="round"/>
             <polygon points="32,12 45,24 41,44 32,53 23,44 19,24" fill="#7f1d1d" stroke="#fde047" stroke-width="1.6"/>
             <polygon points="24,29 30,31 26,35" fill="#fef08a"/>
             <polygon points="40,29 34,31 38,35" fill="#fef08a"/>
             <path d="M25,42 L29,48 M39,42 L35,48" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
             <circle cx="32" cy="21" r="3" fill="#38bdf8"/>
+          `
+        },
+        thunder_boss: {
+          accent: '#c084fc', fill: 'rgba(22, 12, 46, 0.96)', stroke: '#c084fc', ring: '#38bdf8',
+          pillBg: '#3b0764', pillBorder: '#c084fc', pillColor: '#f3e8ff', label: '⚡ LÔI BOSS',
+          art: `
+            <path d="M16,18 L24,22 L19,30 M48,18 L40,22 L45,30" stroke="#38bdf8" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+            <polygon points="32,10 47,25 42,46 32,54 22,46 17,25" fill="#2e1065" stroke="#c084fc" stroke-width="1.7"/>
+            <polygon points="34,16 25,31 33,31 29,46 41,28 33,28" fill="#fde047" stroke="#ffffff" stroke-width="0.9"/>
+            <circle cx="24" cy="28" r="2.2" fill="#38bdf8"/>
+            <circle cx="40" cy="28" r="2.2" fill="#38bdf8"/>
+          `
+        },
+        ice_boss: {
+          accent: '#38bdf8', fill: 'rgba(8, 28, 44, 0.96)', stroke: '#7dd3fc', ring: '#38bdf8',
+          pillBg: '#0c4a6e', pillBorder: '#7dd3fc', pillColor: '#e0f2fe', label: '❄️ BĂNG BOSS',
+          art: `
+            <polygon points="32,9 46,22 43,45 32,55 21,45 18,22" fill="#0e3a59" stroke="#bae6fd" stroke-width="1.7"/>
+            <path d="M32,12 L32,52 M18,24 L46,40 M46,24 L18,40" stroke="#38bdf8" stroke-width="1.5" opacity="0.7"/>
+            <polygon points="32,17 40,28 32,46 24,28" fill="#0284c7" stroke="#e0f2fe" stroke-width="1.3"/>
+            <polygon points="24,27 30,29 26,33" fill="#ffffff"/>
+            <polygon points="40,27 34,29 38,33" fill="#ffffff"/>
+            <circle cx="32" cy="21" r="2.6" fill="#fef08a"/>
+          `
+        },
+        chaos_boss: {
+          accent: '#f97316', fill: 'rgba(38, 10, 8, 0.97)', stroke: '#fb923c', ring: '#facc15',
+          pillBg: '#7c2d12', pillBorder: '#facc15', pillColor: '#fef3c7', label: '🔥 ĐẾ BOSS',
+          art: `
+            <path d="M15,20 L23,12 L27,22 L32,10 L37,22 L41,12 L49,20" fill="none" stroke="#facc15" stroke-width="2.2" stroke-linejoin="round"/>
+            <polygon points="32,14 48,27 42,48 32,55 22,48 16,27" fill="#5c140e" stroke="#fb923c" stroke-width="1.8"/>
+            <circle cx="32" cy="34" r="10" fill="#9a3412" stroke="#facc15" stroke-width="1.3"/>
+            <polygon points="24,28 30,30 26,34" fill="#fef08a"/>
+            <polygon points="40,28 34,30 38,34" fill="#fef08a"/>
+            <circle cx="32" cy="35" r="3.5" fill="#fde047"/>
+          `
+        }
+      };
+      const bCfg = bossStyles[mob.svgKey] || bossStyles.dragon_boss;
+      return `
+        <div class="xianxia-token dragon-boss-token ${scaleClass}" style="--token-accent:${bCfg.accent}">
+          <svg class="token-frame-svg" viewBox="0 0 64 64">
+            <polygon points="32,1 55,10 63,32 55,54 32,63 9,54 1,32 9,10"
+                     fill="${bCfg.fill}" stroke="${bCfg.stroke}" stroke-width="2.5"/>
+            <circle cx="32" cy="32" r="24" fill="none" stroke="${bCfg.ring}" stroke-width="1.4" stroke-dasharray="4 2"/>
+            ${bCfg.art}
           </svg>
-          <span class="token-type-pill" style="background:#7f1d1d;border-color:#fde047;color:#fef08a;">🐉 BOSS</span>
+          <span class="token-type-pill" style="background:${bCfg.pillBg};border-color:${bCfg.pillBorder};color:${bCfg.pillColor};">${bCfg.label}</span>
         </div>
       `;
     }
@@ -544,6 +609,64 @@ window.TuTien.Expedition = {
           <polygon points="23,28 29,30 25,34" fill="#fef08a"/>
           <polygon points="41,28 35,30 39,34" fill="#fef08a"/>
           <path d="M25,40 L28,46 M39,40 L36,46" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+        `
+      },
+      fox: {
+        accent: '#fb923c',
+        art: `
+          <polygon points="17,12 27,23 19,28" fill="#ea580c" stroke="#fed7aa" stroke-width="1.3"/>
+          <polygon points="47,12 37,23 45,28" fill="#ea580c" stroke="#fed7aa" stroke-width="1.3"/>
+          <polygon points="32,20 46,30 32,52 18,30" fill="#7c2d12" stroke="#fb923c" stroke-width="1.6"/>
+          <polygon points="32,34 42,31 32,51 22,31" fill="#ffedd5" opacity="0.88"/>
+          <polygon points="24,31 29,33 25,35" fill="#fde047"/>
+          <polygon points="40,31 35,33 39,35" fill="#fde047"/>
+          <circle cx="32" cy="46" r="2.2" fill="#1c1917"/>
+        `
+      },
+      eagle: {
+        accent: '#a78bfa',
+        art: `
+          <path d="M12,28 Q22,16 32,24 Q42,16 52,28 L44,36 L32,32 L20,36 Z" fill="#312e81" stroke="#c4b5fd" stroke-width="1.5"/>
+          <polygon points="32,14 40,26 32,48 24,26" fill="#1e1b4b" stroke="#a78bfa" stroke-width="1.5"/>
+          <polygon points="28,25 32,27 28,29" fill="#fde047"/>
+          <polygon points="36,25 32,27 36,29" fill="#fde047"/>
+          <polygon points="29,31 35,31 32,41" fill="#facc15" stroke="#fef08a" stroke-width="0.9"/>
+        `
+      },
+      ape: {
+        accent: '#f97316',
+        art: `
+          <circle cx="17" cy="31" r="5" fill="#431407" stroke="#fb923c" stroke-width="1.4"/>
+          <circle cx="47" cy="31" r="5" fill="#431407" stroke="#fb923c" stroke-width="1.4"/>
+          <polygon points="32,12 46,22 44,44 32,52 20,44 18,22" fill="#3b1208" stroke="#f97316" stroke-width="1.7"/>
+          <path d="M22,25 Q32,20 42,25" fill="none" stroke="#fdba74" stroke-width="2.2"/>
+          <circle cx="26" cy="30" r="2.3" fill="#fde047"/>
+          <circle cx="38" cy="30" r="2.3" fill="#fde047"/>
+          <path d="M25,40 Q32,45 39,40" fill="none" stroke="#fff" stroke-width="1.8"/>
+          <path d="M27,40 L28,44 M37,40 L36,44" stroke="#fff" stroke-width="1.6"/>
+        `
+      },
+      phoenix: {
+        accent: '#f43f5e',
+        art: `
+          <path d="M13,34 Q20,16 32,22 Q44,16 51,34 Q42,42 32,52 Q22,42 13,34 Z" fill="#7f1d1d" stroke="#fb7185" stroke-width="1.6"/>
+          <path d="M24,13 L32,22 L40,13 M32,10 L32,22" stroke="#fde047" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <polygon points="32,21 39,31 32,45 25,31" fill="#dc2626" stroke="#fde047" stroke-width="1.3"/>
+          <circle cx="29" cy="29" r="1.7" fill="#fef08a"/>
+          <circle cx="35" cy="29" r="1.7" fill="#fef08a"/>
+          <polygon points="30,33 34,33 32,39" fill="#facc15"/>
+        `
+      },
+      ice_beast: {
+        accent: '#38bdf8',
+        art: `
+          <polygon points="32,10 48,22 44,45 32,54 20,45 16,22" fill="#0c2d48" stroke="#7dd3fc" stroke-width="1.8"/>
+          <polygon points="21,15 28,23 21,28" fill="#bae6fd"/>
+          <polygon points="43,15 36,23 43,28" fill="#bae6fd"/>
+          <polygon points="32,18 41,28 32,47 23,28" fill="#0369a1" stroke="#e0f2fe" stroke-width="1.2"/>
+          <polygon points="25,29 30,31 26,34" fill="#ffffff"/>
+          <polygon points="39,29 34,31 38,34" fill="#ffffff"/>
+          <path d="M28,40 L32,44 L36,40" fill="none" stroke="#bae6fd" stroke-width="1.8"/>
         `
       }
     };
@@ -717,9 +840,8 @@ window.TuTien.Expedition = {
           <button id="btn-goto-dragon-boss" class="btn-ancient-sm affordable" style="border-color:#facc15;color:#fef08a;" title="Cuộn nhanh lên góc trên bên phải gặp Boss Rồng">
             🐉 Boss Thế Giới
           </button>
-          <button id="btn-newbie-reroll-mobs" class="btn-ancient-sm affordable">🔄 Đổi Quái</button>
-          <button id="btn-newbie-heal" class="btn-ancient-sm affordable">🧘 Hồi Phục</button>
-          <button id="btn-newbie-forge" class="btn-ancient-sm affordable">🔨 Rèn Pháp Bảo</button>
+          <span id="nsb-map-refresh" class="nsb-chip" title="Bản đồ tự làm mới quái sau mỗi 5 phút">🗺️ Đổi map: <strong>05:00</strong></span>
+          <button id="btn-open-loadout-exp" class="btn-ancient-sm affordable">⚔️ Chiến Kỹ</button>
           <button id="btn-newbie-bag" class="btn-ancient-sm affordable">🎒 Túi Đồ (<span id="nsb-bag-count">${bagCount}</span>)</button>
         </div>
 
@@ -731,14 +853,26 @@ window.TuTien.Expedition = {
         </div>
       </div>
 
+      <!-- THANH CHỌN 4 VỊ DIỆN & CẢNH BÁO HỒI SINH 3 PHÚT -->
+      <div id="exp-death-cooldown-bar" class="exp-death-bar hidden"></div>
+
       <!-- 2. KHUNG BẢN ĐỒ CỔ QUYỂN PHÓNG TO -->
-      <div id="newbie-map-scroll" class="newbie-map-scroll-wrap">
+      <div class="newbie-map-stage-wrapper">
+        <!-- NÚT CHỌN VỊ DIỆN HÌNH CHỮ NHẬT GÓC TRÊN BÊN PHẢI BẢN ĐỒ (BẤM MỞ DANH SÁCH / BẤM LẠI THU GỌN) -->
+        <div class="plane-corner-widget">
+          <button id="btn-open-planes-bar" class="plane-corner-rect-btn">
+            🌌 <span id="plane-corner-name">${window.TuTien.Planes ? window.TuTien.Planes.getCurrentPlane().ten : 'Tân Thủ Giới'}</span> ▾
+          </button>
+          <div id="planes-selector-bar" class="plane-corner-dropdown hidden"></div>
+        </div>
+
+        <div id="newbie-map-scroll" class="newbie-map-scroll-wrap">
         <div id="newbie-anomaly-banner" class="newbie-floating-banner ${this.secretRealm ? 'anomaly-active' : ''}">
           ${this.lastLootBannerHtml || 'Vuốt cảm ứng / kéo chuột để khám phá bản đồ.'}
         </div>
 
         <div id="newbie-map-canvas" class="newbie-map-surface" style="width:${this.MAP_WIDTH}px;height:${this.MAP_HEIGHT}px;">
-          <img src="${window.TuTien.NEWBIE_MAP_DATA_URI || 'assets/newbie_map.jpg?v=coquyen5'}" class="newbie-map-bg-img" alt="Bản Đồ Tu Tiên Cổ Quyển" draggable="false" />
+          <img id="newbie-map-bg-img" src="${this.getPlaneMapUri(window.TuTien.Planes ? window.TuTien.Planes.getCurrentPlane() : null)}" class="newbie-map-bg-img" alt="Bản Đồ Tu Tiên Cổ Quyển" draggable="false" />
           <div class="newbie-coord-grid-overlay"></div>
 
           <div class="map-axis-x">
@@ -751,6 +885,7 @@ window.TuTien.Expedition = {
           <div id="newbie-mobs-layer" class="newbie-entities-layer"></div>
           <div id="newbie-secret-layer" class="newbie-entities-layer"></div>
         </div>
+      </div>
       </div>
 
       <!-- 3. GIAO DIỆN GIAO CHIẾN THEO LƯỢT (1v1 ARENA CÓ NHẠC CHIẾN ĐẤU) -->
@@ -823,7 +958,25 @@ window.TuTien.Expedition = {
       });
     }
 
-    const rerollBtn = document.getElementById('btn-newbie-reroll-mobs');
+    const planesBtn = document.getElementById('btn-open-planes-bar');
+    if (planesBtn) {
+      planesBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const bar = document.getElementById('planes-selector-bar');
+        if (bar) {
+          bar.classList.toggle('hidden');
+          if (!bar.classList.contains('hidden')) this.renderPlanesBar();
+        }
+      });
+    }
+    const loadoutBtn = document.getElementById('btn-open-loadout-exp');
+    if (loadoutBtn) {
+      loadoutBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (window.TuTien.LoadoutUI) window.TuTien.LoadoutUI.openModal();
+      });
+    }
+    const rerollBtn = null;
     if (rerollBtn) {
       rerollBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
@@ -865,6 +1018,7 @@ window.TuTien.Expedition = {
       });
     }
 
+    this.updateCornerPlaneBtnBg();
     this.renderMobSpots();
     this.renderSecretRealmSpot();
   },
@@ -958,19 +1112,111 @@ window.TuTien.Expedition = {
     });
   },
 
+  getPlaneMapUri(plane) {
+    if (!plane || plane.id === 'tan_thu_gioi') {
+      return window.TuTien.NEWBIE_MAP_DATA_URI || 'assets/newbie_map.jpg?v=coquyen13';
+    }
+    return (window.TuTien.PLANE_MAP_DATA_URIS && window.TuTien.PLANE_MAP_DATA_URIS[plane.id])
+      || `assets/map_${plane.id}.jpg?v=coquyen13`
+      || window.TuTien.NEWBIE_MAP_DATA_URI;
+  },
+
+  updateMapBackground() {
+    const img = document.getElementById('newbie-map-bg-img');
+    if (!img || !window.TuTien.Planes) return;
+    const cur = window.TuTien.Planes.getCurrentPlane();
+    const uri = this.getPlaneMapUri(cur);
+    if (uri && img.getAttribute('src') !== uri) {
+      img.src = uri;
+    }
+  },
+
+  getPlaneBgUri(plane) {
+    if (!plane) return window.TuTien.COMBAT_BG_DATA_URI || 'assets/combat_secret_bg.jpg';
+    if (plane.id === 'tan_thu_gioi') {
+      return window.TuTien.COMBAT_BG_DATA_URI || plane.bgImage || 'assets/combat_secret_bg.jpg';
+    }
+    return (window.TuTien.PLANE_BG_DATA_URIS && window.TuTien.PLANE_BG_DATA_URIS[plane.id]) || plane.bgImage || '';
+  },
+
+  updateCornerPlaneBtnBg() {
+    this.updateMapBackground();
+    const btn = document.getElementById('btn-open-planes-bar');
+    if (!btn || !window.TuTien.Planes) return;
+    const cur = window.TuTien.Planes.getCurrentPlane();
+    const bgUri = this.getPlaneBgUri(cur);
+    if (bgUri) {
+      btn.style.backgroundImage = `linear-gradient(90deg, rgba(14,10,8,0.82) 0%, rgba(14,10,8,0.45) 100%), url('${bgUri}')`;
+      btn.style.backgroundSize = 'cover';
+      btn.style.backgroundPosition = 'center';
+      btn.style.borderColor = cur.accentColor || '#facc15';
+    }
+  },
+
+  renderPlanesBar() {
+    const bar = document.getElementById('planes-selector-bar');
+    if (!bar || !window.TuTien.Planes) return;
+    const Planes = window.TuTien.Planes;
+    const cur = Planes.getCurrentPlane();
+    this.updateCornerPlaneBtnBg();
+
+    bar.innerHTML = (window.TuTien.PLANES || []).map(pl => {
+      const unlocked = Planes.isPlaneUnlocked(pl);
+      const isCur = pl.id === cur.id;
+      const minR = (window.TuTien.REALMS[pl.minRealmIdx] || { fullName: '' }).fullName;
+      const maxR = (window.TuTien.REALMS[pl.maxRealmIdx] || { fullName: '' }).fullName;
+      const reqR = (window.TuTien.REALMS[pl.unlockRealmIdx] || { fullName: '' }).fullName;
+      const bgUri = this.getPlaneBgUri(pl);
+      const scrim = unlocked
+        ? 'linear-gradient(90deg, rgba(12,10,8,0.86) 0%, rgba(12,10,8,0.42) 100%)'
+        : 'linear-gradient(90deg, rgba(12,10,8,0.92) 0%, rgba(12,10,8,0.72) 100%)';
+      const bgCss = bgUri
+        ? `background-image:${scrim}, url('${bgUri}');background-size:cover;background-position:center;`
+        : `background:${pl.bgGradient || 'rgba(24,18,12,0.92)'};`;
+
+      return `
+        <button class="plane-pick-btn ${isCur ? 'active-plane' : ''} ${!unlocked ? 'locked-plane' : ''}" data-plane="${pl.id}"
+                style="${bgCss}border-color:${isCur ? pl.accentColor : 'rgba(227,184,102,0.42)'}">
+          <strong style="color:${unlocked ? pl.accentColor : '#cbd5e1'};text-shadow:0 1px 4px #000;">${unlocked ? '🌌' : '🔒'} ${pl.ten}</strong>
+          <span style="text-shadow:0 1px 4px #000;">${unlocked ? `${minR} → ${maxR}` : `Cần đạt ${reqR}`}</span>
+        </button>
+      `;
+    }).join('');
+
+    bar.querySelectorAll('.plane-pick-btn').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (Planes.switchPlane(btn.getAttribute('data-plane'))) {
+          this.spawnAllRandomMobs();
+          this.renderMobSpots();
+          this.updateCornerPlaneBtnBg();
+          const pn = document.getElementById('plane-corner-name');
+          if (pn) pn.textContent = Planes.getCurrentPlane().ten;
+          const b = document.getElementById('planes-selector-bar');
+          if (b) b.classList.add('hidden');
+          if (window.TuTien.UI) window.TuTien.UI.showToast(`🌌 Đã dịch chuyển tới 【${Planes.getCurrentPlane().ten}】!`, 'success');
+        }
+      });
+    });
+  },
+
   renderMobSpots() {
     if (!this.mobsLayerEl) return;
+    const Planes = window.TuTien.Planes;
+    const curPlane = Planes ? Planes.getCurrentPlane() : { id: 'tan_thu_gioi' };
 
     const regularHtml = this.mobSpots
       .map(mob => {
         const respawnSecLeft = Math.max(1, Math.ceil(mob.respawnRemainingMs / 1000));
+        const threat = Planes ? Planes.getThreatColor(mob.canhGioiIdx || 0) : { color: '#4ade80' };
+        const elMeta = (window.TuTien.COMBAT_ELEMENTS && window.TuTien.COMBAT_ELEMENTS[mob.he]) || { icon: '' };
         return `
           <div class="newbie-mob-spot ${mob.isDead ? 'mob-respawning' : ''}"
                data-mob-id="${mob.id}"
                style="left:${mob.x}px;top:${mob.y}px;">
-            <div class="mob-spot-tag">
-              <div class="mob-spot-name">${mob.name}</div>
-              <div class="mob-spot-realm">${mob.realm}</div>
+            <div class="mob-spot-tag" style="border-color:${threat.color}">
+              <div class="mob-spot-name">${elMeta.icon} ${mob.name}</div>
+              <div class="mob-spot-realm" style="color:${threat.color}">${mob.realm}</div>
             </div>
             ${
               mob.isDead
@@ -982,26 +1228,31 @@ window.TuTien.Expedition = {
       })
       .join('');
 
-    // Render Boss Rồng cố định ở góc trên bên phải (chỗ hình con rồng)
-    const bossLive = this.getDragonBossLiveStats();
-    const bossCdText = this.formatMinSec(this.dragonBoss.respawnRemainingMs);
-    const bossHtml = `
-      <div class="newbie-mob-spot dragon-boss-spot ${this.dragonBoss.isDead ? 'mob-respawning' : ''}"
-           data-mob-id="${this.dragonBoss.id}"
-           style="left:${this.dragonBoss.x}px;top:${this.dragonBoss.y}px;">
-        <div class="mob-spot-tag" style="background:linear-gradient(135deg,#450a0a,#7f1d1d);border-color:#facc15;">
-          <div class="mob-spot-name" style="color:#fde047;">🐉 Boss Thế Giới</div>
-          <div class="mob-spot-realm" style="color:#fecaca;">
-            ${this.dragonBoss.isDead ? `⏳ ${bossCdText}` : bossLive.realm}
+    // Boss Thế Giới của Vị Diện hiện tại (cố định ở góc trên phải)
+    const bossDef = Planes ? Planes.getBossForPlane(curPlane.id) : null;
+    let bossHtml = '';
+    if (bossDef) {
+      const bossCdMs = Planes.getBossRespawnRemainingMs(bossDef.id);
+      const bossDead = bossCdMs > 0;
+      const bossRealm = (window.TuTien.REALMS[bossDef.canhGioiIdx] || { fullName: '' }).fullName;
+      bossHtml = `
+        <div class="newbie-mob-spot dragon-boss-spot ${bossDead ? 'mob-respawning' : ''}"
+             data-mob-id="${bossDef.id}"
+             style="left:${this.dragonBoss.x}px;top:${this.dragonBoss.y}px;">
+          <div class="mob-spot-tag" style="background:linear-gradient(135deg,#450a0a,#7f1d1d);border-color:#facc15;">
+            <div class="mob-spot-name" style="color:#fde047;">🐉 Boss Thế Giới</div>
+            <div class="mob-spot-realm" style="color:#fecaca;">
+              ${bossDead ? `⏳ ${this.formatMinSec(bossCdMs)}` : bossRealm}
+            </div>
           </div>
+          ${
+            bossDead
+              ? `<div class="mob-spot-circle" style="border-color:#facc15;"><span class="mob-respawn-timer">⏳ ${this.formatMinSec(bossCdMs)}</span></div>`
+              : this.getCustomEntityBadgeHTML(bossDef)
+          }
         </div>
-        ${
-          this.dragonBoss.isDead
-            ? `<div class="mob-spot-circle" style="border-color:#facc15;"><span class="mob-respawn-timer">⏳ ${bossCdText}</span></div>`
-            : this.getCustomEntityBadgeHTML(bossLive)
-        }
-      </div>
-    `;
+      `;
+    }
 
     this.mobsLayerEl.innerHTML = regularHtml + bossHtml;
 
@@ -1009,12 +1260,57 @@ window.TuTien.Expedition = {
       el.addEventListener('pointerup', e => {
         if (this.dragMoved) return;
         e.stopPropagation();
+        const deadMs = this.isPlayerDeadCooldown();
+        if (deadMs > 0) {
+          if (window.TuTien.UI) window.TuTien.UI.showToast(`💀 Đang trọng thương, chờ hồi sinh sau ${this.formatMinSec(deadMs)} mới có thể chiến đấu!`, 'warn');
+          return;
+        }
         const mobId = el.getAttribute('data-mob-id');
-        if (mobId === this.dragonBoss.id) {
-          this.openDragonBossPopup();
+        if (bossDef && mobId === bossDef.id) {
+          this.openPlaneBossPopup(bossDef);
         } else {
           this.openMobPopup(mobId);
         }
+      });
+    });
+  },
+
+  openPlaneBossPopup(bossDef) {
+    const Planes = window.TuTien.Planes;
+    const cdMs = Planes.getBossRespawnRemainingMs(bossDef.id);
+    if (cdMs > 0) {
+      if (window.TuTien.UI) window.TuTien.UI.showToast(`🐉 Boss Thế Giới hồi sinh sau ${this.formatMinSec(cdMs)}!`, 'info');
+      return;
+    }
+    const bStats = window.TuTien.getMonsterStatsForRealm(bossDef);
+    const bRealm = (window.TuTien.REALMS[bossDef.canhGioiIdx] || { fullName: '' }).fullName;
+    const Utils = window.TuTien.Utils;
+
+    this.popupOverlayEl.innerHTML = `
+      <div class="newbie-modal-box" style="border-color:#facc15;max-width:480px;">
+        <div class="newbie-modal-header" style="background:linear-gradient(135deg,#450a0a,#7f1d1d);margin:-16px -16px 14px -16px;padding:14px 18px;border-radius:14px 14px 0 0;">
+          <h3 style="color:#fde047;">🐉 Boss Thế Giới</h3>
+          <button id="btn-close-pboss" class="jade-drawer-close">✕</button>
+        </div>
+        <div class="newbie-mob-stats-grid">
+          <div class="nms-item"><span class="nms-label">☯️ Cảnh giới</span><strong style="color:#fde047">${bRealm}</strong></div>
+          <div class="nms-item"><span class="nms-label">❤️ Máu (HP)</span><strong style="color:#f87171">${Utils.formatNumber(bStats.maxHp)}</strong></div>
+          <div class="nms-item"><span class="nms-label">⚔️ Công kích</span><strong>${Utils.formatNumber(bStats.attack)}</strong></div>
+          <div class="nms-item"><span class="nms-label">🛡️ Kháng hiệu ứng</span><strong>${Math.round((bossDef.khangHieuUng || 0) * 100)}%</strong></div>
+        </div>
+        <button id="btn-fight-pboss" class="btn-ancient-wide ready ma-btn">⚔️ Tấn Công</button>
+      </div>
+    `;
+    this.popupOverlayEl.classList.remove('hidden');
+    document.getElementById('btn-close-pboss').addEventListener('pointerdown', e => { e.preventDefault(); this.popupOverlayEl.classList.add('hidden'); });
+    document.getElementById('btn-fight-pboss').addEventListener('pointerdown', e => {
+      e.preventDefault();
+      this.popupOverlayEl.classList.add('hidden');
+      window.TuTien.Combat.startBattle(bossDef, (outcome, summary) => {
+        this.lastLootBannerHtml = summary;
+        if (this.anomalyBannerEl) this.anomalyBannerEl.innerHTML = summary;
+        this.renderMobSpots();
+        this.updateStatusBar();
       });
     });
   },
@@ -1092,19 +1388,15 @@ window.TuTien.Expedition = {
     document.getElementById('btn-enter-mob-combat').addEventListener('pointerdown', e => {
       e.preventDefault();
       this.popupOverlayEl.classList.add('hidden');
-      this.startTurnBasedCombat({
-        sourceType: 'mob',
-        sourceRef: mob,
-        name: mob.name,
-        realm: mob.realm,
-        svgKey: mob.svgKey,
-        entityType: mob.entityType,
-        gender: mob.gender,
-        maxHp: mob.maxHp,
-        currentHp: mob.currentHp,
-        attack: mob.attack,
-        speed: mob.speed || 10,
-        isOverlevel: mob.realmLevel - 1 > this.getPlayerStats().realmIndex
+      window.TuTien.Combat.startBattle(mob, (outcome, summary) => {
+        if (outcome === 'win') {
+          mob.isDead = true;
+          mob.respawnRemainingMs = (mob.respawnSec || 5) * 1000;
+        }
+        this.lastLootBannerHtml = summary;
+        if (this.anomalyBannerEl && !this.secretRealm) this.anomalyBannerEl.innerHTML = summary;
+        this.renderMobSpots();
+        this.updateStatusBar();
       });
     });
   },
@@ -1173,18 +1465,29 @@ window.TuTien.Expedition = {
     document.getElementById('btn-enter-boss-combat').addEventListener('pointerdown', e => {
       e.preventDefault();
       this.popupOverlayEl.classList.add('hidden');
-      this.startTurnBasedCombat({
-        sourceType: 'dragon_boss',
-        sourceRef: boss,
-        name: boss.name,
-        realm: boss.realm,
-        svgKey: 'dragon_boss',
-        entityType: 'boss',
-        maxHp: boss.maxHp,
-        currentHp: boss.maxHp,
-        attack: boss.attack,
-        speed: boss.speed,
-        isOverlevel: true
+      const plane = window.TuTien.Planes ? window.TuTien.Planes.getCurrentPlane() : null;
+      const bossDef = (window.TuTien.Planes && plane && window.TuTien.Planes.getPlaneBoss(plane.id))
+        || {
+          id: 'boss_world',
+          ten: boss.name || 'Boss Thế Giới',
+          he: 'kim',
+          svgKey: 'dragon_boss',
+          isBoss: true,
+          entityType: 'boss',
+          canhGioiIdx: Math.min(139, ((window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.realmIndex) || 0) + 15),
+          chieu: ['long_uy', 'hoa_cau', 'xich_troi', 'cuong_no'],
+          ai: 'cycle',
+          khangHieuUng: 0.45,
+          phanThuong: ['vang_tinh_kim', 'huyet_chan_long']
+        };
+      window.TuTien.Combat.startBattle(bossDef, (outcome, summary) => {
+        if (outcome === 'win') {
+          this.worldBossRespawnAt = Date.now() + 180000;
+          this.renderMobSpots();
+        }
+        this.lastLootBannerHtml = summary;
+        if (this.anomalyBannerEl && !this.secretRealm) this.anomalyBannerEl.innerHTML = summary;
+        this.updateStatusBar();
       });
     });
   },
@@ -1259,7 +1562,7 @@ window.TuTien.Expedition = {
         : 'assets/sprites_walk/nam/nam_di_xuong_01.png';
 
     this.combatOverlayEl.innerHTML = `
-      <div class="pk-arena-shell" style="background:linear-gradient(180deg, rgba(12,18,16,0.42) 0%, rgba(10,14,12,0.72) 100%), url('${window.TuTien.COMBAT_BG_DATA_URI || "assets/combat_secret_bg.jpg"}') center/cover no-repeat;">
+      <div class="pk-arena-shell" style="background:linear-gradient(180deg, rgba(12,18,16,0.42) 0%, rgba(10,14,12,0.72) 100%), url('${(window.TuTien.Planes && window.TuTien.PLANE_BG_DATA_URIS && window.TuTien.PLANE_BG_DATA_URIS[window.TuTien.Planes.getCurrentPlane().id]) || window.TuTien.COMBAT_BG_DATA_URI || "assets/combat_secret_bg.jpg"}') center/cover no-repeat;">
         <div class="pk-top-row">
           <div class="pk-turn-badge">HIỆP ${c.turn}</div>
           <button id="btn-pk-auto" class="btn-ancient-sm ${this.autoBattle ? 'affordable' : ''}">
@@ -1494,6 +1797,19 @@ window.TuTien.Expedition = {
           .map(d => `<strong style="color:${d.color}">${d.icon} ${d.name} [${d.tierName}] ×${d.qty}</strong>`)
           .join(', ');
 
+                // Rơi thêm Máu Yêu Thú tương ứng vào nguyên liệu Phù Án
+        if (window.TuTien.Talisman) {
+          const bloodMap = {
+            wolf: { id: 'huyet_yeu_lang', name: 'Máu Yêu Lang', icon: '🐺' },
+            snake: { id: 'noc_huyet_doc_xa', name: 'Máu Độc Xà', icon: '🐍' },
+            bear: { id: 'huyet_hac_hung', name: 'Máu Hắc Hùng', icon: '🐻' },
+            tiger: { id: 'huyet_xich_ho', name: 'Máu Xích Viêm Hổ', icon: '🐯' },
+            golem: { id: 'yeu_dan_phan', name: 'Bột Yêu Đan', icon: '🔮' }
+          };
+          const bDrop = bloodMap[mob.svgKey] || { id: 'huyet_loi_dieu', name: 'Máu Lôi Điểu', icon: '🦅' };
+          window.TuTien.Talisman.addMatQty(bDrop.id, 2);
+          dropPlain += `, ${bDrop.icon} ${bDrop.name} ×2`;
+        }
         const stoneGain = mob.realmLevel * 6;
         if (window.TuTien.Inventory) window.TuTien.Inventory.addSpiritStones(stoneGain);
 
@@ -1532,6 +1848,7 @@ window.TuTien.Expedition = {
     this.dragonBoss.isDead = true;
     this.dragonBoss.respawnRemainingMs = this.dragonBoss.respawnSec * 1000; // 3 phút = 180s
 
+    if (window.TuTien.Talisman) window.TuTien.Talisman.addMatQty('huyet_chan_long', 3);
     const stones = 180 + boss.realmDisplayNumber * 12;
     if (Inv) Inv.addSpiritStones(stones);
 
@@ -1715,6 +2032,11 @@ window.TuTien.Expedition = {
   },
 
   openSecretRealmAdventure() {
+    const deadMs = this.isPlayerDeadCooldown();
+    if (deadMs > 0) {
+      if (window.TuTien.UI) window.TuTien.UI.showToast(`💀 Đang trọng thương, chờ hồi sinh sau ${this.formatMinSec(deadMs)} mới có thể vào Bí Cảnh!`, 'warn');
+      return;
+    }
     if (!this.secretRealm || !this.popupOverlayEl) return;
     // Khởi tạo phiên thám hiểm 3 tầng cho Bí Cảnh này
     this.secretRun = {
@@ -1772,7 +2094,7 @@ window.TuTien.Expedition = {
     ].filter(Boolean);
 
     this.popupOverlayEl.innerHTML = `
-      <div class="newbie-modal-box secret-modal-xl" style="border-color:${sr.color};background:linear-gradient(180deg, rgba(16,20,16,0.78) 0%, rgba(12,14,12,0.88) 100%), url('${window.TuTien.COMBAT_BG_DATA_URI || "assets/combat_secret_bg.jpg"}') center/cover no-repeat;">
+      <div class="newbie-modal-box secret-modal-xl" style="border-color:${sr.color};background:linear-gradient(180deg, rgba(16,20,16,0.78) 0%, rgba(12,14,12,0.88) 100%), url('${(window.TuTien.Planes && window.TuTien.PLANE_BG_DATA_URIS && window.TuTien.PLANE_BG_DATA_URIS[window.TuTien.Planes.getCurrentPlane().id]) || window.TuTien.COMBAT_BG_DATA_URI || "assets/combat_secret_bg.jpg"}') center/cover no-repeat;">
         <div class="newbie-modal-header" style="background:${sr.bgGradient};margin:-20px -20px 14px -20px;padding:14px 20px;border-radius:16px 16px 0 0;border-bottom:1.5px solid ${sr.color};">
           <div>
             <div style="font-size:0.8rem;color:#fef08a;font-weight:700;">★ ${sr.rankLabel.toUpperCase()} • ${stageTitles[run.stage]}</div>
@@ -1919,24 +2241,40 @@ window.TuTien.Expedition = {
       this.renderSecretAdventureModal();
     } else if (choiceKey === 'ambush') {
       const pStats = this.getPlayerStats();
+      const pRealmIdx = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.realmIndex) || 0;
+      const elemCycle = ['tho', 'moc', 'thuy', 'hoa', 'kim', 'loi', 'bang'];
+      const gElem = elemCycle[(sr.tier || 1) % elemCycle.length];
       this.popupOverlayEl.classList.add('hidden');
-      this.startTurnBasedCombat(
+      window.TuTien.Combat.startBattle(
         {
-          sourceType: 'secret_guardian',
-          name: `Thủ Vệ ${sr.name}`,
-          realm: sr.recommendRealm,
+          id: `secret_ambush_${sr.tier || 1}`,
+          ten: `Thủ Vệ ${sr.name}`,
+          he: gElem,
           svgKey: sr.guardianSvg || 'golem',
           entityType: 'monster',
-          maxHp: Math.max(120, Math.round(pStats.maxHp * 0.9)),
-          attack: Math.max(15, Math.round(pStats.attack * 0.72)),
-          speed: Math.round(pStats.speed * 0.9),
-          isOverlevel: false
+          canhGioiIdx: pRealmIdx,
+          realmLabelOverride: sr.recommendRealm || 'Thủ Vệ Bí Cảnh',
+          chieu: ['can_xe', 'thach_ap', 'cuong_no'],
+          ai: 'cycle',
+          khangHieuUng: Math.min(0.4, 0.08 * (sr.tier || 1)),
+          phanThuong: ['vang_tinh_kim'],
+          customStats: {
+            maxHp: Math.max(120, Math.round(pStats.maxHp * 0.9)),
+            attack: Math.max(15, Math.round(pStats.attack * 0.72)),
+            defense: Math.max(15, Math.round((20 + pRealmIdx * 4.2) * 0.9)),
+            speed: Math.max(10, Math.round(pStats.speed * 0.9))
+          }
         },
-        () => {
-          this.grantSecretLoot(sr.stoneReward[0], 0, 'vang_tinh_kim', 'Vàng', '🌕', 2, sr.maxItemTier);
-          run.logs.push(`⚔️ Hạ gục Thủ Vệ tầng 2! Đoạt +${sr.stoneReward[0]} Linh Thạch và 🌕 Vàng ×2!`);
-          run.stage = 3;
-          this.renderSecretAdventureModal();
+        (outcome) => {
+          if (outcome === 'win') {
+            this.grantSecretLoot(sr.stoneReward[0], 0, 'vang_tinh_kim', 'Vàng', '🌕', 2, sr.maxItemTier);
+            run.logs.push(`⚔️ Hạ gục Thủ Vệ tầng 2! Đoạt +${sr.stoneReward[0]} Linh Thạch và 🌕 Vàng ×2!`);
+            run.stage = 3;
+            this.renderSecretAdventureModal();
+          } else {
+            this.secretRun = null;
+          }
+          this.updateStatusBar();
         }
       );
     } else if (choiceKey === 'vault_safe') {
@@ -1946,27 +2284,44 @@ window.TuTien.Expedition = {
       this.finishSecretAdventure(`✨ Hoàn tất 【${sr.name} — ${sr.rankLabel}】! Đã thu toàn bộ bảo vật về Túi Đồ!`);
     } else if (choiceKey === 'vault_boss') {
       const pStats = this.getPlayerStats();
+      const pRealmIdx = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.realmIndex) || 0;
+      const bossElems = ['hoa', 'loi', 'bang', 'kim', 'tho'];
+      const bElem = bossElems[(sr.tier || 1) % bossElems.length];
       this.popupOverlayEl.classList.add('hidden');
-      this.startTurnBasedCombat(
+      window.TuTien.Combat.startBattle(
         {
-          sourceType: 'secret_guardian',
-          name: sr.guardianName,
-          realm: `${sr.rankLabel}`,
+          id: `secret_boss_${sr.tier || 1}`,
+          ten: sr.guardianName,
+          he: bElem,
           svgKey: sr.guardianSvg || 'tiger',
           entityType: 'monster',
-          maxHp: Math.max(220, Math.round(pStats.maxHp * (1.1 + sr.tier * 0.14))),
-          attack: Math.max(22, Math.round(pStats.attack * (0.82 + sr.tier * 0.06))),
-          speed: Math.round(pStats.speed * 1.05),
-          isOverlevel: sr.tier >= 3
+          isElite: true,
+          canhGioiIdx: Math.min(139, pRealmIdx + (sr.tier >= 3 ? 2 : 0)),
+          realmLabelOverride: `${sr.rankLabel}`,
+          chieu: ['long_uy', 'hoa_cau', 'xich_troi', 'cuong_no'],
+          ai: 'cycle',
+          khangHieuUng: Math.min(0.55, 0.15 + 0.08 * (sr.tier || 1)),
+          phanThuong: ['vang_tinh_kim', 'huyet_chan_long'],
+          customStats: {
+            maxHp: Math.max(220, Math.round(pStats.maxHp * (1.1 + sr.tier * 0.14))),
+            attack: Math.max(22, Math.round(pStats.attack * (0.82 + sr.tier * 0.06))),
+            defense: Math.max(20, Math.round((20 + pRealmIdx * 4.5) * (1 + sr.tier * 0.08))),
+            speed: Math.max(12, Math.round(pStats.speed * 1.05))
+          }
         },
-        () => {
-          const st = sr.stoneReward[1] * 2;
-          const qi = Math.max(160, Math.floor(realmReq * 0.35 * sr.qiMult));
-          this.grantSecretLoot(st, qi, 'vang_tinh_kim', 'Vàng', '🌕', sr.tier + 1, sr.maxItemTier);
-          const unlocked = this.tryUnlockHiddenSecretItem();
-          this.finishSecretAdventure(
-            `🏆 Đánh bại 【${sr.guardianName}】 đoạt Lõi Bảo Khố x2!${unlocked ? ` ${unlocked}!` : ''}`
-          );
+        (outcome) => {
+          if (outcome === 'win') {
+            const st = sr.stoneReward[1] * 2;
+            const qi = Math.max(160, Math.floor(realmReq * 0.35 * sr.qiMult));
+            this.grantSecretLoot(st, qi, 'vang_tinh_kim', 'Vàng', '🌕', sr.tier + 1, sr.maxItemTier);
+            const unlocked = this.tryUnlockHiddenSecretItem();
+            this.finishSecretAdventure(
+              `🏆 Đánh bại 【${sr.guardianName}】 đoạt Lõi Bảo Khố x2!${unlocked ? ` ${unlocked}!` : ''}`
+            );
+          } else {
+            this.secretRun = null;
+          }
+          this.updateStatusBar();
         }
       );
     }
@@ -2114,6 +2469,43 @@ window.TuTien.Expedition = {
 
   tick(dtMs) {
     let needRenderMobs = false;
+
+    // 1. Tự hồi HP/MP ngoài trận theo cấu hình
+    if (!window.TuTien.Combat || !window.TuTien.Combat.isActive()) {
+      const pStats = this.getPlayerStats();
+      const healPct = (window.TuTien.CONFIG && window.TuTien.CONFIG.combatV2 && window.TuTien.CONFIG.combatV2.outOfCombatHealPctPerSec) || 0.025;
+      if (this.playerCurrentHp !== null && this.playerCurrentHp < pStats.maxHp) {
+        this.playerCurrentHp = Math.min(pStats.maxHp, this.playerCurrentHp + pStats.maxHp * healPct * (dtMs / 1000));
+      }
+      if (this.playerCurrentMp !== null && this.playerCurrentMp < pStats.maxMp) {
+        this.playerCurrentMp = Math.min(pStats.maxMp, this.playerCurrentMp + pStats.maxMp * healPct * (dtMs / 1000));
+      }
+    }
+
+    // 2. Đếm ngược tự đổi bản đồ / làm mới quái sau mỗi 5 phút (300s)
+    const prevRefSec = Math.ceil((this.mapRefreshRemainingMs || 0) / 1000);
+    this.mapRefreshRemainingMs = (this.mapRefreshRemainingMs || 300000) - dtMs;
+    const nextRefSec = Math.ceil(this.mapRefreshRemainingMs / 1000);
+    if (this.mapRefreshRemainingMs <= 0) {
+      this.spawnAllRandomMobs();
+      needRenderMobs = true;
+    }
+    if (prevRefSec !== nextRefSec && this.isOpen) {
+      const refEl = document.getElementById('nsb-map-refresh');
+      if (refEl) refEl.innerHTML = `🗺️ Đổi map: <strong>${this.formatMinSec(this.mapRefreshRemainingMs)}</strong>`;
+
+      // Cập nhật thanh cảnh báo hồi sinh 3 phút nếu người chơi vừa tử trận
+      const deadMs = this.isPlayerDeadCooldown();
+      const dBar = document.getElementById('exp-death-cooldown-bar');
+      if (dBar) {
+        if (deadMs > 0) {
+          dBar.classList.remove('hidden');
+          dBar.innerHTML = `💀 Trọng thương sau chiến đấu — Hồi sinh sau <strong>${this.formatMinSec(deadMs)}</strong> (tạm khóa đánh quái & vào Bí Cảnh)`;
+        } else {
+          dBar.classList.add('hidden');
+        }
+      }
+    }
 
     this.mobSpots.forEach((mob, idx) => {
       if (mob.isDead) {

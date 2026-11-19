@@ -40,6 +40,13 @@ window.TuTien.Main = {
     UI.init();
     if (Audio) Audio.init();
     if (Profile) Profile.init();
+    if (window.TuTien.InputGuard) window.TuTien.InputGuard.init();
+    if (window.TuTien.Forge) window.TuTien.Forge.checkPendingAbandonedSessionOnLoad();
+    if (window.TuTien.CraftUI) window.TuTien.CraftUI.init();
+    if (window.TuTien.Alchemy) window.TuTien.Alchemy.checkPendingAbandonedSessionOnLoad();
+    if (window.TuTien.AlchemyUI) window.TuTien.AlchemyUI.init();
+    if (window.TuTien.Talisman) window.TuTien.Talisman.checkPendingAbandonedSessionOnLoad();
+    if (window.TuTien.TalismanUI) window.TuTien.TalismanUI.init();
     window.TuTien.Events.checkAchievements();
 
     window.addEventListener('beforeunload', () => {
@@ -76,6 +83,9 @@ window.TuTien.Main = {
     this._safe('Tribulation', () => { if (T.Tribulation && T.Tribulation.active) T.Tribulation.update(dtMs); });
     this._safe('Crafting', () => { if (T.CraftingMinigame && T.CraftingMinigame.active) T.CraftingMinigame.update(dtMs); });
     this._safe('Expedition', () => { if (T.Expedition) T.Expedition.update(dtMs); });
+    this._safe('Forge', () => { if (T.Forge) T.Forge.update(dtMs); });
+    this._safe('Alchemy', () => { if (T.Alchemy) T.Alchemy.update(dtMs); });
+    this._safe('Talisman', () => { if (T.Talisman) T.Talisman.update(dtMs); });
     this._safe('Effects', () => { if (T.Effects) T.Effects.updateAndRender(dtMs); });
 
     this.uiRefreshAccumulatorMs += dtMs;

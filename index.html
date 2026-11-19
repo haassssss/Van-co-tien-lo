@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Vạn Cổ Tiên Lộ — Tu Chân Idle</title>
-  <link rel="stylesheet" href="css/theme.css?v=coquyen6" />
-  <link rel="stylesheet" href="css/hotbar.css?v=coquyen6" />
-  <link rel="stylesheet" href="css/skin.css?v=coquyen6" />
+  <link rel="stylesheet" href="css/theme.css?v=coquyen17" />
+  <link rel="stylesheet" href="css/hotbar.css?v=coquyen17" />
+  <link rel="stylesheet" href="css/skin.css?v=coquyen17" />
 </head>
 <body>
+  <div id="active-timed-buffs-hud" class="timed-buffs-hud"></div>
   <!-- 1. CẢNH NỀN TIÊN SƠN BÌNH MINH (assets/bg.jpg + lớp sương mù cổ phong) -->
   <div class="immortal-world-bg">
     <div class="bg-vignette-overlay"></div>
@@ -157,6 +158,68 @@
     </div>
   </div>
 
+  <!-- 9D. CỬA SỔ THƯƠNG THÀNH (4 TẦNG, 5 TIỆM, THU MUA & ĐƠN HÀNG) -->
+  <div id="shop-modal-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card expedition-modal-card shop-modal-card">
+      <div class="jade-drawer-header" style="margin:-12px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">🏮 Thương Thành — Vạn Bảo Tiên Các</h2>
+        <button id="shop-modal-close" class="jade-drawer-close" title="Rời Thương Thành">✕</button>
+      </div>
+      <div id="shop-panel-container"></div>
+    </div>
+  </div>
+
+
+  <!-- 9B. CỬA SỔ LÒ RÈN PHÁP BẢO (KHỐNG HỎA F/G/H) -->
+  <div id="forge-modal-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card expedition-modal-card">
+      <div class="jade-drawer-header" style="margin:-12px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">🔥 Lò Rèn Pháp Bảo — Đoán Tạo & Khống Hỏa</h2>
+        <button id="forge-modal-close" class="jade-drawer-close" title="Đóng Lò Rèn">✕</button>
+      </div>
+      <div id="forge-ui-body" class="forge-ui-body"></div>
+      <div id="forge-abandon-confirm" class="newbie-inner-modal hidden"></div>
+    </div>
+  </div>
+
+  <!-- 9C. CỬA SỔ ĐAN LÔ LUYỆN ĐAN (HÒA DƯỢC F/G/H/J & NGƯNG ĐAN SPACE) -->
+  <div id="alchemy-modal-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card expedition-modal-card">
+      <div class="jade-drawer-header" style="margin:-12px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">⚗️ Đan Lô — Hòa Dược & Ngưng Đan</h2>
+        <button id="alchemy-modal-close" class="jade-drawer-close" title="Đóng Đan Lô">✕</button>
+      </div>
+      <div id="alchemy-ui-body" class="forge-ui-body"></div>
+      <div id="alchemy-abandon-confirm" class="newbie-inner-modal hidden"></div>
+    </div>
+  </div>
+
+  <!-- 9D. CỬA SỔ PHÙ ÁN LUYỆN PHÙ (HỌA PHÙ CANVAS) -->
+  <div id="talisman-modal-overlay" class="tribulation-overlay hidden">
+    <div class="tribulation-card expedition-modal-card">
+      <div class="jade-drawer-header" style="margin:-12px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">📜 Phù Án — Họa Phù Truyền Linh</h2>
+        <button id="talisman-modal-close" class="jade-drawer-close" title="Đóng Phù Án">✕</button>
+      </div>
+      <div id="talisman-ui-body" class="forge-ui-body"></div>
+      <div id="talisman-abandon-confirm" class="newbie-inner-modal hidden"></div>
+    </div>
+  </div>
+
+  <!-- 9E. ĐẤU TRƯỜNG CHIẾN ĐẤU V2 (POKÉMON TURN-BASED) -->
+  <div id="combat-v2-overlay" class="exp-combat-overlay hidden" style="position:fixed;inset:2vh 2vw;z-index:80;border:2px solid #d4af37;box-shadow:0 0 60px rgba(0,0,0,0.95);"></div>
+
+  <!-- 9F. MODAL 4 Ô CHIẾN KỸ -->
+  <div id="loadout-modal-overlay" class="tribulation-overlay hidden" style="z-index:85;">
+    <div class="tribulation-card expedition-modal-card" style="max-width:860px !important;height:86vh !important;">
+      <div class="jade-drawer-header" style="margin:-12px -16px 10px -16px;padding:10px 18px;">
+        <h2 class="jade-drawer-title">⚔️ Chiến Kỹ — Trang Bị 4 Công Pháp Chiến Đấu</h2>
+        <button id="loadout-modal-close" class="jade-drawer-close">✕</button>
+      </div>
+      <div id="loadout-modal-body" class="forge-ui-body"></div>
+    </div>
+  </div>
+
   <!-- 10. MINIGAME ĐỘ THIÊN KIẾP -->
   <div id="tribulation-overlay" class="tribulation-overlay hidden">
     <div class="tribulation-card">
@@ -267,10 +330,25 @@
 
   <!-- MENU BÊN PHẢI -->
   <aside class="side-menu">
-    <button id="btn-quick-expedition" class="side-extra expedition-quick-btn" title="Mở Bản Đồ Bí Cảnh Hồng Hoang">
-      <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20l-5 1 1-5L14.5 4.5zM13 6l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-      <span class="slot-label">Xuất Quan</span>
-    </button>
+    <div class="xuat-quan-wrap">
+      <button id="btn-quick-expedition" class="side-extra expedition-quick-btn" title="Xuất Quan: Ra Thế Giới hoặc Thương Thành">
+        <svg class="slot-svg-icon" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20l-5 1 1-5L14.5 4.5zM13 6l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span class="slot-label">Xuất Quan</span>
+      </button>
+      <div id="xuat-quan-flyout" class="xuat-quan-flyout hidden">
+        <button id="btn-xq-world" class="xq-choice-card xq-world-card" title="Khám phá Bản Đồ Thế Giới & Bí Cảnh">
+          <span class="xq-card-label">🗺️ Ra Thế Giới</span>
+        </button>
+        <button id="btn-xq-market" class="xq-choice-card xq-market-card" title="Mở Thương Thành giao dịch Linh Thạch">
+          <span id="dot-shop" class="hotbar-dot"></span>
+          <span class="xq-card-label">🏮 Thương Thành</span>
+        </button>
+        <button id="btn-xq-sect" class="xq-choice-card xq-sect-card" title="Tông Môn (Sắp ra mắt)">
+          <span class="xq-soon-tag">Sắp mở</span>
+          <span class="xq-card-label">🏯 Tông Môn</span>
+        </button>
+      </div>
+    </div>
       <nav id="hotbar-submenu-wrap" class="ancient-hotbar" aria-label="Các mục phụ">
         <button class="hotbar-slot" data-panel="upgrades">
           <span class="slot-hotkey">1</span>
@@ -357,34 +435,71 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Nạp tuần tự các module JS thuần -->
-  <script src="js/config.js?v=coquyen6"></script>
-  <script src="js/utils.js?v=coquyen6"></script>
-  <script src="js/data/realms.js?v=coquyen6"></script>
-  <script src="js/data/upgrades.js?v=coquyen6"></script>
-  <script src="js/data/roots.js?v=coquyen6"></script>
-  <script src="js/data/aptitudes.js?v=coquyen6"></script>
-  <script src="js/data/fields.js?v=coquyen6"></script>
-  <script src="js/data/achievements.js?v=coquyen6"></script>
-  <script src="js/state.js?v=coquyen6"></script>
-  <script src="js/audio.js?v=coquyen6"></script>
-  <script src="js/character.js?v=coquyen6"></script>
-  <script src="js/inventory.js?v=coquyen6"></script>
-  <script src="js/crafting_minigame.js?v=coquyen6"></script>
-  <script src="js/fields.js?v=coquyen6"></script>
-  <script src="js/tribulation.js?v=coquyen6"></script>
-  <script src="js/cultivate.js?v=coquyen6"></script>
-  <script src="js/breakthrough.js?v=coquyen6"></script>
-  <script src="js/upgrades.js?v=coquyen6"></script>
-  <script src="js/prestige.js?v=coquyen6"></script>
-  <script src="js/events.js?v=coquyen6"></script>
-  <script src="js/save.js?v=coquyen6"></script>
-  <script src="js/effects.js?v=coquyen6"></script>
-  <script src="js/data/map_tiles.js?v=coquyen6"></script>
-  <script src="js/expedition.js?v=coquyen6"></script>
-  <script src="js/hotbar.js?v=coquyen6"></script>
-  <script src="js/panels.js?v=coquyen6"></script>
-  <script src="js/profile.js?v=coquyen6"></script>
-  <script src="js/ui.js?v=coquyen6"></script>
-  <script src="js/main.js?v=coquyen6"></script>
+  <script src="js/config.js?v=coquyen17"></script>
+  <script src="js/utils.js?v=coquyen17"></script>
+  <script src="js/data/realms.js?v=coquyen17"></script>
+  <script src="js/data/upgrades.js?v=coquyen17"></script>
+  <script src="js/data/roots.js?v=coquyen17"></script>
+  <script src="js/data/aptitudes.js?v=coquyen17"></script>
+  <script src="js/data/fields.js?v=coquyen17"></script>
+  <script src="js/data/achievements.js?v=coquyen17"></script>
+  <script src="js/state.js?v=coquyen17"></script>
+  <script src="js/audio.js?v=coquyen17"></script>
+  <script src="js/character.js?v=coquyen17"></script>
+  <script src="js/inventory.js?v=coquyen17"></script>
+  <script src="js/crafting_minigame.js?v=coquyen17"></script>
+  <script src="js/fields.js?v=coquyen17"></script>
+  <script src="js/tribulation.js?v=coquyen17"></script>
+  <script src="js/cultivate.js?v=coquyen17"></script>
+  <script src="js/breakthrough.js?v=coquyen17"></script>
+  <script src="js/upgrades.js?v=coquyen17"></script>
+  <script src="js/prestige.js?v=coquyen17"></script>
+  <script src="js/events.js?v=coquyen17"></script>
+  <script src="js/save.js?v=coquyen17"></script>
+  <script src="js/effects.js?v=coquyen17"></script>
+  <script src="js/data/map_tiles.js?v=coquyen17"></script>
+  <script src="js/expedition.js?v=coquyen17"></script>
+  <script src="js/hotbar.js?v=coquyen17"></script>
+  <script src="js/panels.js?v=coquyen17"></script>
+  <script src="js/profile.js?v=coquyen17"></script>
+  <script src="js/ui.js?v=coquyen17"></script>
+    <script src="js/data/forgeMaterials.js?v=coquyen17"></script>
+  <script src="js/data/affixes.js?v=coquyen17"></script>
+  <script src="js/data/artifacts.js?v=coquyen17"></script>
+  <script src="js/artifactArt.js?v=coquyen17"></script>
+  <script src="js/inputGuard.js?v=coquyen17"></script>
+  <script src="js/forge.js?v=coquyen17"></script>
+  <script src="js/craftUI.js?v=coquyen17"></script>
+    <script src="js/data/alchemyMaterials.js?v=coquyen17"></script>
+  <script src="js/data/pills.js?v=coquyen17"></script>
+  <script src="js/pillArt.js?v=coquyen17"></script>
+  <script src="js/alchemy.js?v=coquyen17"></script>
+  <script src="js/alchemyUI.js?v=coquyen17"></script>
+  <script src="js/data/talismanMaterials.js?v=coquyen17"></script>
+  <script src="js/data/talismans.js?v=coquyen17"></script>
+  <script src="js/talismanArt.js?v=coquyen17"></script>
+  <script src="js/talisman.js?v=coquyen17"></script>
+  <script src="js/talismanUI.js?v=coquyen17"></script>
+    <script src="js/data/statusEffects.js?v=coquyen17"></script>
+  <script src="js/data/techniques.js?v=coquyen17"></script>
+  <script src="js/data/planes.js?v=coquyen17"></script>
+  <script src="js/data/monsters.js?v=coquyen17"></script>
+  <script src="js/status.js?v=coquyen17"></script>
+  <script src="js/techniques.js?v=coquyen17"></script>
+  <script src="js/loadout.js?v=coquyen17"></script>
+  <script src="js/planes.js?v=coquyen17"></script>
+  <script src="js/combatAI.js?v=coquyen17"></script>
+  <script src="js/combat.js?v=coquyen17"></script>
+  <script src="js/combatUI.js?v=coquyen17"></script>
+  <script src="js/loadoutUI.js?v=coquyen17"></script>
+    <script src="js/data/shopFloors.js?v=coquyen17"></script>
+  <script src="js/data/merchants.js?v=coquyen17"></script>
+  <script src="js/data/shopItems.js?v=coquyen17"></script>
+  <script src="js/data/shops.js?v=coquyen17"></script>
+  <script src="js/data/orders.js?v=coquyen17"></script>
+  <script src="js/shopRotation.js?v=coquyen17"></script>
+  <script src="js/shop.js?v=coquyen17"></script>
+  <script src="js/shopUI.js?v=coquyen17"></script>
+  <script src="js/main.js?v=coquyen17"></script>
 </body>
 </html>

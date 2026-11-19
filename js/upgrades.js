@@ -160,6 +160,18 @@ window.TuTien.Upgrades = {
     return window.TuTien.State.data.qi >= cost;
   },
 
+  buyUpgradeSilent(upgradeId) {
+    const upgradeDef = this.resolveDef(upgradeId);
+    if (!upgradeDef || !this.isUnlocked(upgradeDef) || this.isMaxed(upgradeDef) || !this.canAfford(upgradeDef)) {
+      return false;
+    }
+    const state = window.TuTien.State;
+    const cost = this.getUpgradeCost(upgradeDef);
+    state.data.qi -= cost;
+    state.data.upgrades[upgradeDef.id] = state.getUpgradeLevel(upgradeDef.id) + 1;
+    return true;
+  },
+
   buyUpgrade(upgradeId) {
     const upgradeDef = this.resolveDef(upgradeId);
     if (!upgradeDef) return false;
