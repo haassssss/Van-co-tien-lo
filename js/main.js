@@ -115,3 +115,16 @@ window.TuTien.Main = {
 window.addEventListener('DOMContentLoaded', () => {
   window.TuTien.Main.start();
 });
+
+// Chống tự động phóng to (double-tap / pinch zoom) trên iOS Safari khi bấm nhanh
+(function () {
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+  let lastTap = 0;
+  document.addEventListener('touchend', function (e) {
+    const now = Date.now();
+    if (now - lastTap <= 280 && !e.target.closest('input, textarea, select')) {
+      e.preventDefault();
+    }
+    lastTap = now;
+  }, { passive: false });
+})();

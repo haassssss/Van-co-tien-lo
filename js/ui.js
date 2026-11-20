@@ -465,7 +465,56 @@ window.TuTien.UI = {
     }
   },
 
+  updateActiveBuffsHud() {
+    const el = document.getElementById('hud-active-buffs-panel');
+    if (!el || !window.TuTien.State || !window.TuTien.State.data) return;
+    const buffs = (window.TuTien.State.data.fields && window.TuTien.State.data.fields.buffs) || {};
+    const fmt = ms => {
+      const s = Math.max(0, Math.ceil(ms / 1000));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+    };
+    const rows = [];
+    if (buffs.pillBoostRemainingMs > 0) {
+      rows.push({ icon: '💊', title: 'Đan Dược Tu Luyện', effect: `x${(buffs.pillBoostMultiplier || 1.5).toFixed(2)} Tốc độ nền`, time: fmt(buffs.pillBoostRemainingMs), color: '#4ade80' });
+    }
+    if (buffs.combatBuffRemainingMs > 0) {
+      rows.push({ icon: '🔥', title: 'Chiến Đan / Phù Công', effect: `x${(buffs.combatBuffMultiplier || 1.45).toFixed(2)} Click & Công`, time: fmt(buffs.combatBuffRemainingMs), color: '#fb923c' });
+    }
+    if (buffs.hpBuffRemainingMs > 0) {
+      rows.push({ icon: '❤️', title: 'Hộ Thể Huyết Đan', effect: `x${(buffs.hpBuffMultiplier || 1.4).toFixed(2)} Máu tối đa`, time: fmt(buffs.hpBuffRemainingMs), color: '#f43f5e' });
+    }
+    if (buffs.talismanRemainingMs > 0) {
+      rows.push({ icon: '🧧', title: 'Linh Phù Gia Trì', effect: `x${(buffs.talismanMultiplier || 1.8).toFixed(2)} Linh Khí / Tự vận`, time: fmt(buffs.talismanRemainingMs), color: '#facc15' });
+    }
+    if (buffs.nextBreakthroughBonus > 0) {
+      rows.push({ icon: '⚡', title: 'Phá Cảnh Đan / Phù', effect: `+${Math.round(buffs.nextBreakthroughBonus * 100)}% Tỉ lệ Đột Phá`, time: '1 lần', color: '#38bdf8' });
+    }
+    if (buffs.protectNextBreakthrough) {
+      rows.push({ icon: '🛡️', title: 'Hộ Mạch / Hộ Đạo', effect: 'Giảm tổn thất khi đột phá trượt', time: '1 lần', color: '#c084fc' });
+    }
+    if (buffs.antiLightningSkipChance > 0) {
+      rows.push({ icon: '🌩️', title: 'Hộ Kiếp Phù', effect: `${Math.round(buffs.antiLightningSkipChance * 100)}% tránh Lôi Kiếp`, time: '1 lần', color: '#fde047' });
+    }
+
+    if (!rows.length) {
+      if (el.innerHTML !== '') el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="hud-buff-card" style="border-left:3px solid ${r.color};">
+        <div class="hud-buff-head">
+          <strong style="color:${r.color};">${r.icon} ${r.title}</strong>
+          <span class="hud-buff-time">⏳ ${r.time}</span>
+        </div>
+        <div class="hud-buff-desc">${r.effect}</div>
+      </div>
+    `).join('');
+  },
+
   updateAll() {
+    this.updateActiveBuffsHud();
     this.updateShopDot();
     this.updateThemeAndRealmInfo();
     this.updateCharacterArtwork();

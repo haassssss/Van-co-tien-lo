@@ -18,7 +18,7 @@ window.TuTien.COMBAT_TECHNIQUES = [
   },
   {
     id: 'hoi_xuan_so_cap', ten: 'Hồi Xuân Sơ Cấp', he: 'moc', loaiChieu: 'hoi_phuc',
-    chiPhiLinhLuc: 22, hoiChieu: 3, heSoSatThuong: 0, healPct: 0.16, giaiTru: false,
+    chiPhiLinhLuc: 22, hoiChieu: 2, heSoSatThuong: 0, healPct: 0.16, giaiTru: false,
     hieuUng: [],
     buffDiKem: { stat: 'hpPct', value: 0.05, label: '+5% Máu tối đa', phamViBuff: 'chien_dau' },
     phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Khởi đầu', yeuCauCanhGioi: 0, costQi: 0,
@@ -51,7 +51,7 @@ window.TuTien.COMBAT_TECHNIQUES = [
   },
   {
     id: 'hoi_xuan_quyet', ten: 'Hồi Xuân Dưỡng Sinh Quyết', he: 'moc', loaiChieu: 'hoi_phuc',
-    chiPhiLinhLuc: 145, hoiChieu: 3, heSoSatThuong: 0, healPct: 0.28, giaiTru: true,
+    chiPhiLinhLuc: 145, hoiChieu: 2, heSoSatThuong: 0, healPct: 0.28, giaiTru: true,
     hieuUng: [],
     buffDiKem: { stat: 'hpPct', value: 0.12, label: '+12% Máu tối đa', phamViBuff: 'chien_dau' },
     phamGiaiKhoiDau: 2, nangCap: 'co_dinh', phamGiaiToiDa: 2, nguon: 'Rơi từ Quái / Bí Cảnh', yeuCauCanhGioi: 10, costQi: 0,
@@ -157,7 +157,7 @@ window.TuTien.COMBAT_TECHNIQUES = [
   },
   {
     id: 'van_moc_phuc_sinh', ten: 'Vạn Mộc Phục Sinh Thuật', he: 'moc', loaiChieu: 'hoi_phuc',
-    chiPhiLinhLuc: 2150, hoiChieu: 4, heSoSatThuong: 0, healPct: 0.45, giaiTru: true,
+    chiPhiLinhLuc: 2150, hoiChieu: 2, heSoSatThuong: 0, healPct: 0.45, giaiTru: true,
     hieuUng: [{ id: 'ho_the', tiLeHieuUng: 100, soHiep: 2, targetSelf: true }],
     buffDiKem: { stat: 'hpPct', value: 0.22, label: '+22% Máu tối đa', phamViBuff: 'chien_dau' },
     phamGiaiKhoiDau: 5, nangCap: 'co_dinh', phamGiaiToiDa: 5, nguon: 'Rơi từ Quái / Bí Cảnh', yeuCauCanhGioi: 30, costQi: 450000,
@@ -223,5 +223,116 @@ window.TuTien.COMBAT_TECHNIQUES = [
     buffDiKem: { stat: 'atkPct', value: 0.42, label: '+42% Công Kích & +20% Tốc độ nền', phamViBuff: 'ca_hai' },
     phamGiaiKhoiDau: 7, nangCap: 'co_dinh', phamGiaiToiDa: 7, nguon: 'Boss Thế Giới — Hồng Mông Giới', yeuCauCanhGioi: 50, costQi: 0,
     moTa: '[Tuyệt Học Chí Tôn Cố Định — Thánh Giai] Tuyệt kỹ tối thượng đánh trước, kết liễu cực đại!'
+  },
+  // --- THÊM CÔNG PHÁP CẤP THẤP (PHÀM PHẨM & HOÀNG GIAI) ---
+  {
+    id: 'cuong_phong_chuong', ten: 'Cuồng Phong Chưởng', he: 'moc', loaiChieu: 'tan_cong',
+    chiPhiLinhLuc: 18, hoiChieu: 1, heSoSatThuong: 1.25, uuTien: true,
+    hieuUng: [],
+    buffDiKem: { stat: 'spdPct', value: 0.06, label: '+6% Tốc Độ chiến đấu', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: 'Chưởng pháp hệ Mộc ra đòn ưu tiên, thích hợp tân tu sĩ.'
+  },
+  {
+    id: 'thuy_tien_thuat', ten: 'Thủy Tiễn Thuật', he: 'thuy', loaiChieu: 'tan_cong',
+    chiPhiLinhLuc: 20, hoiChieu: 1, heSoSatThuong: 1.30, uuTien: false,
+    hieuUng: [{ id: 'tri_hoan', tiLeHieuUng: 70, soHiep: 2 }],
+    buffDiKem: { stat: 'mpRegenPct', value: 0.04, label: '+4% Hồi Linh Lực mỗi hiệp', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: 'Bắn thủy tiễn gây sát thương và có tỉ lệ Trì Hoãn địch.'
+  },
+  {
+    id: 'tho_thach_quyen', ten: 'Thổ Thạch Phá Quyền', he: 'tho', loaiChieu: 'tan_cong',
+    chiPhiLinhLuc: 22, hoiChieu: 1, heSoSatThuong: 1.35, uuTien: false,
+    hieuUng: [{ id: 'pha_giap', tiLeHieuUng: 65, soHiep: 2 }],
+    buffDiKem: { stat: 'defPct', value: 0.07, label: '+7% Phòng Thủ chiến đấu', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: 'Quyền kình hệ Thổ nặng nề, có thể Phá Giáp địch.'
+  },
+  {
+    id: 'hoa_linh_chi', ten: 'Hỏa Linh Chỉ', he: 'hoa', loaiChieu: 'tan_cong',
+    chiPhiLinhLuc: 95, hoiChieu: 1, heSoSatThuong: 1.45, uuTien: false,
+    hieuUng: [{ id: 'thieu_dot', tiLeHieuUng: 80, soHiep: 2 }],
+    buffDiKem: { stat: 'atkPct', value: 0.08, label: '+8% Công Kích', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 2, nangCap: 'co_dinh', phamGiaiToiDa: 2, nguon: 'Rơi từ Quái / Thương Thành', yeuCauCanhGioi: 10, costQi: 0,
+    moTa: 'Chỉ pháp hệ Hỏa thiêu đốt mục tiêu trong 2 hiệp.'
+  },
+
+  // --- CÔNG PHÁP RIÊNG MA ĐẠO: HỆ HUYẾT (HÚT 25% SÁT THƯƠNG THÀNH MÁU, CD 3 LƯỢT) ---
+  {
+    id: 'huyet_sat_trao', ten: 'Huyết Sát Trảo', he: 'huyet', loaiChieu: 'tan_cong', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 24, hoiChieu: 3, heSoSatThuong: 1.35, lifestealPct: 0.25, uuTien: false,
+    hieuUng: [{ id: 'chay_mau', tiLeHieuUng: 75, soHiep: 2 }],
+    buffDiKem: { stat: 'atkPct', value: 0.08, label: '+8% Công Kích (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái (Ma Đạo)', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: '[Ma Đạo • Huyết] Đánh gây Chảy Máu và hút 25% sát thương thành Máu (CD 3 hiệp).'
+  },
+  {
+    id: 'huyet_hai_ma_quyet', ten: 'Huyết Hải Ma Quyết', he: 'huyet', loaiChieu: 'tan_cong', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 350, hoiChieu: 3, heSoSatThuong: 1.65, lifestealPct: 0.25, uuTien: false,
+    hieuUng: [{ id: 'chay_mau', tiLeHieuUng: 100, soHiep: 3 }],
+    buffDiKem: { stat: 'hpPct', value: 0.14, label: '+14% Máu tối đa (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 3, nangCap: 'co_dinh', phamGiaiToiDa: 3, nguon: 'Rơi từ Quái / Boss (Ma Đạo)', yeuCauCanhGioi: 20, costQi: 0,
+    moTa: '[Ma Đạo • Huyết] Huyết hải ngập trời, hút 25% sát thương thành Máu và gây Chảy Máu 3 hiệp.'
+  },
+  {
+    id: 'huyet_hon_tru_tien', ten: 'Huyết Hồn Tru Tiên Trận', he: 'huyet', loaiChieu: 'tan_cong', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 2100, hoiChieu: 3, heSoSatThuong: 2.05, lifestealPct: 0.25, uuTien: true,
+    hieuUng: [{ id: 'chay_mau', tiLeHieuUng: 100, soHiep: 3 }, { id: 'suy_yeu', tiLeHieuUng: 90, soHiep: 2 }],
+    buffDiKem: { stat: 'atkPct', value: 0.22, label: '+22% Công Kích (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 5, nangCap: 'co_dinh', phamGiaiToiDa: 5, nguon: 'Bí Cảnh (Ma Đạo)', yeuCauCanhGioi: 30, costQi: 0,
+    moTa: '[Ma Đạo • Huyết] Tuyệt học Thiên Giai: đánh ưu tiên, hút 25% sát thương thành Máu và Suy Yếu địch.'
+  },
+
+  // --- CÔNG PHÁP RIÊNG MA ĐẠO: HỆ ÁM ---
+  {
+    id: 'am_anh_kich', ten: 'Ám Ảnh Kích', he: 'am', loaiChieu: 'tan_cong', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 22, hoiChieu: 1, heSoSatThuong: 1.32, uuTien: true,
+    hieuUng: [{ id: 'pha_giap', tiLeHieuUng: 80, soHiep: 2 }],
+    buffDiKem: { stat: 'spdPct', value: 0.08, label: '+8% Tốc Độ (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái (Ma Đạo)', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: '[Ma Đạo • Ám] Tập kích trong bóng tối, ra đòn ưu tiên và Phá Giáp 2 hiệp.'
+  },
+  {
+    id: 'u_minh_am_tran', ten: 'U Minh Ám Trận', he: 'am', loaiChieu: 'hieu_ung', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 135, hoiChieu: 2, heSoSatThuong: 1.48, uuTien: false,
+    hieuUng: [{ id: 'troi_buoc', tiLeHieuUng: 95, soHiep: 2 }, { id: 'suy_yeu', tiLeHieuUng: 85, soHiep: 2 }],
+    buffDiKem: { stat: 'atkPct', value: 0.12, label: '+12% Công Kích (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 2, nangCap: 'co_dinh', phamGiaiToiDa: 2, nguon: 'Rơi từ Quái (Ma Đạo)', yeuCauCanhGioi: 10, costQi: 0,
+    moTa: '[Ma Đạo • Ám] Bóng tối khóa chặt mục tiêu, gây Trói Buộc và Suy Yếu.'
+  },
+  {
+    id: 'vinh_hang_hac_am', ten: 'Vĩnh Hằng Hắc Ám Quyết', he: 'am', loaiChieu: 'tan_cong', yeuCauDaoLo: 'ma_dao',
+    chiPhiLinhLuc: 980, hoiChieu: 2, heSoSatThuong: 1.88, uuTien: false,
+    hieuUng: [{ id: 'xich_khoa', tiLeHieuUng: 100, soHiep: 2 }, { id: 'trung_doc', tiLeHieuUng: 100, soHiep: 3 }],
+    buffDiKem: { stat: 'spdPct', value: 0.18, label: '+18% Tốc Độ (Ma Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 4, nangCap: 'co_dinh', phamGiaiToiDa: 4, nguon: 'Rơi từ Quái / Boss (Ma Đạo)', yeuCauCanhGioi: 30, costQi: 0,
+    moTa: '[Ma Đạo • Ám] Địa Giai ma công: Xích Khóa và Trúng Độc nặng nề.'
+  },
+
+  // --- CÔNG PHÁP RIÊNG CHÍNH ĐẠO: HỆ QUANG (TRIỆU HỒI GIÁP ẢO 15% SÁT THƯƠNG, CD 3 LƯỢT) ---
+  {
+    id: 'quang_minh_kiem', ten: 'Quang Minh Kiếm Khí', he: 'quang', loaiChieu: 'tan_cong', yeuCauDaoLo: 'chinh_dao',
+    chiPhiLinhLuc: 24, hoiChieu: 3, heSoSatThuong: 1.35, shieldPct: 0.15, uuTien: false,
+    hieuUng: [],
+    buffDiKem: { stat: 'defPct', value: 0.08, label: '+8% Phòng Thủ (Chính Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 1, nangCap: 'co_dinh', phamGiaiToiDa: 1, nguon: 'Rơi từ Quái (Chính Đạo)', yeuCauCanhGioi: 0, costQi: 0,
+    moTa: '[Chính Đạo • Quang] Kiếm khí ánh sáng vừa gây sát thương vừa tạo Khiên Ảo bằng 15% sát thương (CD 3 hiệp).'
+  },
+  {
+    id: 'thanh_quang_ho_the', ten: 'Thánh Quang Trấn Ma Ấn', he: 'quang', loaiChieu: 'tan_cong', yeuCauDaoLo: 'chinh_dao',
+    chiPhiLinhLuc: 130, hoiChieu: 3, heSoSatThuong: 1.55, shieldPct: 0.15, uuTien: true,
+    hieuUng: [{ id: 'suy_yeu', tiLeHieuUng: 80, soHiep: 2 }],
+    buffDiKem: { stat: 'hpPct', value: 0.12, label: '+12% Máu tối đa (Chính Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 2, nangCap: 'co_dinh', phamGiaiToiDa: 2, nguon: 'Rơi từ Quái (Chính Đạo)', yeuCauCanhGioi: 10, costQi: 0,
+    moTa: '[Chính Đạo • Quang] Đánh ưu tiên, tạo Khiên Ảo 15% sát thương và làm Suy Yếu kẻ địch.'
+  },
+  {
+    id: 'thai_duong_than_quang', ten: 'Thái Dương Thần Quang Trảm', he: 'quang', loaiChieu: 'tan_cong', yeuCauDaoLo: 'chinh_dao',
+    chiPhiLinhLuc: 2050, hoiChieu: 3, heSoSatThuong: 2.02, shieldPct: 0.15, uuTien: true,
+    hieuUng: [{ id: 'thieu_dot', tiLeHieuUng: 100, soHiep: 3 }],
+    buffDiKem: { stat: 'defPct', value: 0.22, label: '+22% Phòng Thủ (Chính Đạo)', phamViBuff: 'chien_dau' },
+    phamGiaiKhoiDau: 5, nangCap: 'co_dinh', phamGiaiToiDa: 5, nguon: 'Bí Cảnh (Chính Đạo)', yeuCauCanhGioi: 30, costQi: 0,
+    moTa: '[Chính Đạo • Quang] Tuyệt học Thiên Giai: tạo Khiên Ảo 15% sát thương và Thiêu Đốt 3 hiệp.'
   }
 ];

@@ -1988,6 +1988,19 @@ window.TuTien.Expedition = {
    * Cơ hội mở khóa 1 Bí Tịch Công Pháp, Đan Phương hoặc Phù Phương đang ẩn (???)
    */
   tryUnlockHiddenSecretItem() {
+    // Cơ hội nhận Công Pháp Chiến Đấu từ Thiên Giai trở lên (chỉ rơi trong Bí Cảnh!)
+    if (window.TuTien.Techniques && window.TuTien.COMBAT_TECHNIQUES) {
+      const curFac = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.character && window.TuTien.State.data.character.faction) || 'chinh_dao';
+      const highPool = window.TuTien.COMBAT_TECHNIQUES.filter(
+        t => (t.phamGiaiKhoiDau || 1) >= 5 && (!t.yeuCauDaoLo || t.yeuCauDaoLo === curFac) && !window.TuTien.Techniques.isLearned(t.id)
+      );
+      if (highPool.length > 0 && Math.random() < 0.45) {
+        const pick = highPool[Math.floor(Math.random() * highPool.length)];
+        window.TuTien.Techniques.grantTechnique(pick.id, 'Cơ duyên Bí Cảnh');
+        const gr = window.TuTien.Techniques.getGradeObj(pick.phamGiaiKhoiDau);
+        return `📖 Lĩnh ngộ Tuyệt Học Bí Cảnh: 【${pick.ten} - ${gr.name}】`;
+      }
+    }
     const Upgrades = window.TuTien.Upgrades;
     const Fields = window.TuTien.Fields;
 

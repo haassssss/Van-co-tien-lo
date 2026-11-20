@@ -111,6 +111,7 @@ window.TuTien.Combat = {
         realmIdx: pRealmIdx,
         maxHp: pMaxHp,
         currentHp: startHp,
+        shield: 0,
         maxMp: pMaxMp,
         currentMp: startMp,
         attack: pAtk,
@@ -373,6 +374,18 @@ window.TuTien.Combat = {
         this.pushBanner(`${p.name} dùng 【${skillObj.def.ten}】`, skillObj.def.he, '💥');
         this.pushFloatDamage('enemy', `-${Utils.formatNumber(dmgRes.damage)}${dmgRes.elemLabel ? ' ' + dmgRes.elemLabel : ''}`, dmgRes.isAdvantage);
         s.logs.push(`💥 ${p.name} dùng 【${skillObj.def.ten}】 gây -${Utils.formatNumber(dmgRes.damage)} HP${dmgRes.elemLabel ? ` (${dmgRes.elemLabel})` : ''}.`);
+        if (skillObj.def.lifestealPct > 0 && dmgRes.damage > 0) {
+          const steal = Math.max(1, Math.round(dmgRes.damage * skillObj.def.lifestealPct));
+          p.currentHp = Math.min(p.maxHp, p.currentHp + steal);
+          this.pushFloatDamage('player', `🩸 +${Utils.formatNumber(steal)}`, false, true);
+          s.logs.push(`🩸 Huyết Công hút +${Utils.formatNumber(steal)} HP!`);
+        }
+        if (skillObj.def.shieldPct > 0 && dmgRes.damage > 0) {
+          const sh = Math.max(1, Math.round(dmgRes.damage * skillObj.def.shieldPct));
+          p.shield = (p.shield || 0) + sh;
+          this.pushFloatDamage('player', `🛡️ +${Utils.formatNumber(sh)}`, false, true);
+          s.logs.push(`✨ Quang Công triệu hồi Giáp Ảo +${Utils.formatNumber(sh)}!`);
+        }
         (skillObj.def.hieuUng || []).forEach(ef => {
           const r = Status.applyEffect(e, ef.id, ef.soHiep, ef.tiLeHieuUng);
           if (r.applied && r.def) s.logs.push(`${r.def.icon} ${e.name} dính 【${r.def.ten}】 (${ef.soHiep} hiệp)!`);
@@ -441,7 +454,14 @@ window.TuTien.Combat = {
       }
     } else {
       const dmgRes = this.computeDeterministicDamage(e, p, mSkill.heSo || 1.0, mSkill.he || e.he, false, false);
-      p.currentHp = Math.max(0, p.currentHp - dmgRes.damage);
+      let remDmg = dmgRes.damage;
+      if (p.shield > 0 && remDmg > 0) {
+        const absorbed = Math.min(p.shield, remDmg);
+        p.shield -= absorbed;
+        remDmg -= absorbed;
+        s.logs.push(`🛡️ Giáp Ảo chặn -${Utils.formatNumber(absorbed)} sát thương!`);
+      }
+      p.currentHp = Math.max(0, p.currentHp - remDmg);
       this.pushFloatDamage('player', `-${Utils.formatNumber(dmgRes.damage)}${dmgRes.elemLabel ? ' ' + dmgRes.elemLabel : ''}`, dmgRes.isAdvantage);
       s.logs.push(`👹 ${e.name} dùng 【${mSkill.ten}】 gây -${Utils.formatNumber(dmgRes.damage)} HP.`);
       (mSkill.hieuUng || []).forEach(ef => {
@@ -562,9 +582,10 @@ window.TuTien.Combat = {
       if (!mDef.isBoss && window.TuTien.Techniques) {
         const dropChance = (mDef.isElite ? 0.35 : 0.14) + planeIdx * 0.08;
         if (Math.random() <= dropChance) {
-          const maxDropTier = Math.min(6, planeIdx + 3);
+          const curFac = (State && State.data && State.data.character && State.data.character.faction) || 'chinh_dao';
+          const maxDropTier = Math.min(4, planeIdx + 2); // Quái & Boss chỉ rơi dưới Thiên Giai (<= Địa Giai)
           const pool = (window.TuTien.COMBAT_TECHNIQUES || []).filter(
-            t => !t.id.startsWith('boss_') && (t.phamGiaiKhoiDau || 1) <= maxDropTier && !window.TuTien.Techniques.isLearned(t.id)
+            t => (t.phamGiaiKhoiDau || 1) <= maxDropTier && (!t.yeuCauDaoLo || t.yeuCauDaoLo === curFac) && !window.TuTien.Techniques.isLearned(t.id)
           );
           if (pool.length > 0) {
             const picked = pool[Math.floor(Math.random() * pool.length)];
@@ -576,9 +597,11 @@ window.TuTien.Combat = {
       // Nếu là Boss Thế Giới -> lưu mốc hồi sinh 30 phút & rơi Công Pháp loại 'co_dinh'
       if (mDef.isBoss) {
         if (window.TuTien.Planes) window.TuTien.Planes.markBossDefeated(mDef.id);
-        if (mDef.dropTechId && window.TuTien.Techniques && window.TuTien.Techniques.learnFromDrop(mDef.dropTechId)) {
+        if (mDef.dropTechId && window.TuTien.Techniques) {
           const tDef = window.TuTien.Techniques.getDef(mDef.dropTechId);
-          lootParts.push(`📖 Tuyệt Học Cố Định: 【${tDef.ten}】`);
+          if (tDef && (tDef.phamGiaiKhoiDau || 1) < 5 && window.TuTien.Techniques.learnFromDrop(mDef.dropTechId)) {
+            lootParts.push(`📖 Bí Tịch: 【${tDef.ten}】`);
+          }
         }
       }
 

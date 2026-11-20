@@ -67,6 +67,13 @@ window.TuTien.Techniques = {
   getUsability(id, realmIdx = null) {
     const def = this.getDef(id);
     if (!def) return { canUse: false, powerMult: 0, status: 'locked', label: 'Không tồn tại' };
+    if (def.yeuCauDaoLo) {
+      const curFac = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.character && window.TuTien.State.data.character.faction) || 'chinh_dao';
+      if (curFac !== def.yeuCauDaoLo) {
+        const facName = def.yeuCauDaoLo === 'ma_dao' ? 'Ma Đạo' : 'Chính Đạo';
+        return { canUse: false, powerMult: 0, status: 'locked', label: `Chỉ dành cho ${facName}`, reqName: facName };
+      }
+    }
     const rIdx = realmIdx !== null
       ? realmIdx
       : ((window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.realmIndex) || 0);

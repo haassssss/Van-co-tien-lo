@@ -11,7 +11,10 @@ window.TuTien.COMBAT_ELEMENTS = {
   hoa:  { id: 'hoa',  name: 'Hỏa',  icon: '🔥', color: '#fb923c', strongAgainst: ['kim', 'moc', 'bang'], weakAgainst: ['thuy'] },
   tho:  { id: 'tho',  name: 'Thổ',  icon: '⛰️', color: '#d97706', strongAgainst: ['thuy', 'loi'],  weakAgainst: ['moc'] },
   loi:  { id: 'loi',  name: 'Lôi',  icon: '⚡', color: '#c084fc', strongAgainst: ['thuy', 'kim'],  weakAgainst: ['tho'] },
-  bang: { id: 'bang', name: 'Băng', icon: '❄️', color: '#67e8f9', strongAgainst: ['moc'],          weakAgainst: ['hoa', 'kim'] }
+  bang:  { id: 'bang',  name: 'Băng',  icon: '❄️', color: '#67e8f9', strongAgainst: ['moc'],          weakAgainst: ['hoa', 'kim'] },
+  am:    { id: 'am',    name: 'Ám',    icon: '🌑', color: '#a855f7', strongAgainst: ['quang', 'moc'], weakAgainst: ['quang', 'loi'] },
+  huyet: { id: 'huyet', name: 'Huyết', icon: '🩸', color: '#e11d48', strongAgainst: ['moc', 'thuy'],  weakAgainst: ['quang', 'kim'] },
+  quang: { id: 'quang', name: 'Quang', icon: '✨', color: '#fef08a', strongAgainst: ['am', 'huyet'],  weakAgainst: ['am', 'tho'] }
 };
 
 window.TuTien.STATUS_EFFECTS = {

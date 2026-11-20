@@ -101,7 +101,7 @@ window.TuTien.CONFIG = {
   offlineEfficiency: 0.85,
 
   // === 8. CHUYỂN SINH (PRESTIGE) & ĐẠO VẬN ===
-  minRealmIndexForPrestige: 10,
+  minRealmIndexForPrestige: 60,
   daoVanBasePerMajorRealm: 2,
   daoVanExponent: 1.42,
 
@@ -246,8 +246,8 @@ window.TuTien.CONFIG = {
     { tier: 3, id: 'huyen', name: 'Huyền Giai', color: '#38bdf8', mult: 1.80, reqRealmIdx: 20, reqRealmName: 'Tử Phủ - Sơ Kỳ' },
     { tier: 4, id: 'dia',   name: 'Địa Giai',   color: '#4ade80', mult: 2.40, reqRealmIdx: 30, reqRealmName: 'Kim Thân - Sơ Kỳ' },
     { tier: 5, id: 'thien', name: 'Thiên Giai', color: '#c084fc', mult: 3.20, reqRealmIdx: 30, reqRealmName: 'Kim Thân - Sơ Kỳ' },
-    { tier: 6, id: 'tien',  name: 'Tiên Phẩm',  color: '#fb923c', mult: 4.30, reqRealmIdx: 40, reqRealmName: 'Hóa Thần - Sơ Kỳ' },
-    { tier: 7, id: 'thanh', name: 'Thánh Phẩm', color: '#f43f5e', mult: 5.80, reqRealmIdx: 50, reqRealmName: 'Hợp Thể - Sơ Kỳ' }
+    { tier: 6, id: 'thanh', name: 'Thánh Phẩm', color: '#fb923c', mult: 4.30, reqRealmIdx: 40, reqRealmName: 'Hóa Thần - Sơ Kỳ' },
+    { tier: 7, id: 'tien',  name: 'Tiên Phẩm',  color: '#f43f5e', mult: 5.80, reqRealmIdx: 50, reqRealmName: 'Hợp Thể - Sơ Kỳ' }
   ],
 
 

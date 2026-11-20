@@ -188,9 +188,9 @@ window.TuTien.CombatUI = {
             if (!sup.label) return '';
             const col = sup.diff > 0 ? '#86efac' : '#fda4af';
             const bdr = sup.diff > 0 ? 'rgba(74,222,128,0.55)' : 'rgba(244,63,94,0.6)';
-            return `<div class="pk-turn-badge" style="color:${col};border-color:${bdr};font-size:0.74rem;margin-left:8px;">${sup.label}</div>`;
+            return `<div class="pk-turn-badge" style="color:${col};border-color:${bdr};font-size:0.74rem;">${sup.label}</div>`;
           })()}
-          <button id="btn-c2-auto" class="btn-ancient-sm ${Combat.autoBattle ? 'affordable' : ''}" style="position:absolute;right:0;">
+          <button id="btn-c2-auto" class="btn-ancient-sm pk-auto-btn ${Combat.autoBattle ? 'affordable' : ''}">
             ⚡ Tự Động: ${Combat.autoBattle ? 'Bật' : 'Tắt'}
           </button>
         </div>
@@ -210,7 +210,7 @@ window.TuTien.CombatUI = {
               <div class="pk-bar-track"><div class="pk-bar-fill hp-fill" style="width:${pHpPct.toFixed(1)}%"></div></div>
               <div class="pk-bar-num">❤️ ${Utils.formatNumber(p.currentHp)} / ${Utils.formatNumber(p.maxHp)}</div>
               <div class="pk-bar-track mp-track"><div class="pk-bar-fill mp-fill" style="width:${pMpPct.toFixed(1)}%"></div></div>
-              <div class="pk-bar-num" style="color:#7dd3fc;">💧 ${Utils.formatNumber(p.currentMp)} / ${Utils.formatNumber(p.maxMp)}</div>
+              <div class="pk-bar-num" style="color:#7dd3fc;">💧 ${Utils.formatNumber(p.currentMp)} / ${Utils.formatNumber(p.maxMp)}${p.shield > 0 ? ` • <span style="color:#fef08a;">🛡️ Giáp: ${Utils.formatNumber(p.shield)}</span>` : ''}</div>
               <div class="c-status-row">${this.renderStatusPills(p)}</div>
             </div>
             <div class="pk-platform-wrap">

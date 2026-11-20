@@ -153,7 +153,7 @@ window.TuTien.Save = {
       window.TuTien.Shop.syncCycle();
     }
     if (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.inventory && Array.isArray(window.TuTien.State.data.inventory.items)) {
-      const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+      const tierPowerTable = { 1: 0.35, 2: 1.1, 3: 2.8, 4: 6.5, 5: 15.0 };
       window.TuTien.State.data.inventory.items.forEach(it => {
         if (it.category === 'artifact' && !it.combatStats) {
           const tier = Math.max(1, Math.min(5, it.qualityTier || (it.quality && it.quality.tier) || 1));

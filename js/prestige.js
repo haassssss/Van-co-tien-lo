@@ -17,18 +17,10 @@ window.TuTien.Prestige = {
   calculatePendingDaoVan() {
     if (!this.canPrestige()) return 0;
     const cfg = window.TuTien.CONFIG;
-    const state = window.TuTien.State;
-    const realmIdx = state.data.realmIndex;
-
-    const stepsAboveMin = realmIdx - cfg.minRealmIndexForPrestige + 1;
-    const majorTierBonus = Math.floor(realmIdx / 5);
-
-    const raw =
-      cfg.daoVanBasePerMajorRealm *
-      Math.pow(stepsAboveMin, cfg.daoVanExponent * 0.78) *
-      (1 + majorTierBonus * 0.25);
-
-    return Math.max(1, Math.floor(raw));
+    const realmIdx = window.TuTien.State.data.realmIndex;
+    const minIdx = cfg.minRealmIndexForPrestige || 60; // Độ Kiếp - Sơ Kỳ
+    const extraRealms = Math.max(0, realmIdx - minIdx);
+    return 200 + extraRealms * 10;
   },
 
   rollRandomRoot(excludeRootId = null) {

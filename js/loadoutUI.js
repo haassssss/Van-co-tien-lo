@@ -49,6 +49,8 @@ window.TuTien.LoadoutUI = {
         parts.push('🌀 Khống chế');
       }
     }
+    if (t.lifestealPct) parts.push(`🩸 Hút ${Math.round(t.lifestealPct * 100)}% máu`);
+    if (t.shieldPct) parts.push(`🛡️ Khiên ${Math.round(t.shieldPct * 100)}%`);
     if (effParts.length) parts.push(effParts.join(', '));
     if (t.uuTien) parts.push('Đánh trước');
     if (t.hoiChieu > 0) parts.push(`CD ${t.hoiChieu}h`);

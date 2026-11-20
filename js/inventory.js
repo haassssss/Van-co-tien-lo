@@ -376,7 +376,7 @@ window.TuTien.Inventory = {
 
     // Hệ số Phẩm Chất tăng dứt khoát theo bậc (Hạ < Trung < Thượng < Cực < Tiên)
     // Đảm bảo TUYỆT ĐỐI Pháp Bảo phẩm cao hơn luôn mạnh hơn Pháp Bảo phẩm thấp hơn!
-    const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+    const tierPowerTable = { 1: 0.35, 2: 1.1, 3: 2.8, 4: 6.5, 5: 15.0 };
     const tierPower = tierPowerTable[qualityObj.tier] || qualityObj.mult || 1.0;
     const rankFactor = 1 + (Math.max(1, smithRank) - 1) * 0.22;
 

@@ -473,7 +473,7 @@ window.TuTien.Shop = {
       const bp = (window.TuTien.ARTIFACT_BLUEPRINTS || []).find(x => x.id === item.refId);
       const bag = State.data.inventory;
       const tier = Math.max(1, Math.min(3, item.phamGiai || 1));
-      const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+      const tierPowerTable = { 1: 0.35, 2: 1.1, 3: 2.8, 4: 6.5, 5: 15.0 };
       const tierPower = tierPowerTable[tier] || 1.0;
       const smithRank = tier === 1 ? 2 : tier === 2 ? 4 : 7;
       const rankFactor = 1 + (smithRank - 1) * 0.22;

@@ -2438,3 +2438,306 @@ img {
     font-size: 0.64rem;
   }
 }
+
+/* === ACTIVE BUFFS HUD & IOS MOBILE FIX V23 === */
+html, body, button, .cultivation-stage, #cultivation-click-zone, .alchemy-hold-btn, .forge-hold-btn {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.hud-active-buffs-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 220px;
+  max-width: 42vw;
+  pointer-events: none;
+}
+.hud-buff-card {
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: rgba(18, 13, 9, 0.82);
+  border: 1px solid rgba(227, 184, 102, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+.hud-buff-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+}
+.hud-buff-time {
+  color: #fde68a;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hud-buff-desc {
+  font-size: 0.68rem;
+  color: #e2e8f0;
+  margin-top: 2px;
+}
+
+/* Ổn định layout Luyện Đan trên Mobile (chống nhảy / thụt ra thụt vô khi bấm nút giữ) */
+#alchemy-modal-overlay .expedition-modal-card,
+#alchemy-panel-container {
+  overflow-anchor: none !important;
+  overscroll-behavior: contain !important;
+}
+.alchemy-hud-row,
+.alchemy-bar-label,
+.alchemy-stage-banner,
+.alchemy-score-readout {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-variant-numeric: tabular-nums !important;
+  min-height: 22px;
+}
+.alchemy-hold-btn,
+.forge-hold-btn,
+.talisman-hold-btn {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  min-height: 52px !important;
+  transform: none !important;
+}
+.alchemy-hold-btn:active {
+  transform: none !important;
+  filter: brightness(1.18);
+}
+@media (max-width: 760px) {
+  .hud-active-buffs-panel {
+    top: 78px;
+    left: 8px;
+    width: 170px;
+  }
+  .hud-buff-card { padding: 4px 7px; }
+  .hud-buff-head { font-size: 0.66rem; }
+  .hud-buff-desc { font-size: 0.62rem; }
+}
+
+/* === MOBILE PORTRAIT & LANDSCAPE COMBAT SCALE V24 === */
+.pk-top-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+.pk-auto-btn {
+  position: static !important;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.exp-combat-overlay {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+}
+.pk-arena-shell {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Mobile DỌC (Portrait) — nén stage thành 2 cột ngang song song để 6 nút chiêu luôn hiện đủ 100% */
+@media (max-width: 760px) and (orientation: portrait) {
+  .pk-arena-shell {
+    padding: 6px 8px !important;
+    gap: 4px !important;
+    justify-content: space-between !important;
+  }
+  .pk-top-row {
+    gap: 4px !important;
+  }
+  .pk-turn-badge {
+    padding: 3px 10px !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.2px !important;
+  }
+  .pk-auto-btn {
+    padding: 3px 8px !important;
+    font-size: 0.7rem !important;
+  }
+  .pk-stage {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    align-items: end !important;
+    gap: 6px !important;
+    padding: 2px 4px !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: 44dvh !important;
+  }
+  .pk-side {
+    width: 100% !important;
+    gap: 4px !important;
+  }
+  .pk-stat-card {
+    padding: 5px 6px !important;
+    font-size: 0.68rem !important;
+  }
+  .pk-bar-num {
+    font-size: 0.64rem !important;
+  }
+  .pk-player-sprite {
+    height: 76px !important;
+    width: auto !important;
+  }
+  .boss-battle-cutout-wrap,
+  .mob-battle-cutout-wrap {
+    width: 102px !important;
+    height: 96px !important;
+  }
+  .boss-battle-cutout-img,
+  .mob-battle-cutout-img {
+    max-width: 98px !important;
+    max-height: 86px !important;
+  }
+  .pk-platform {
+    width: 92px !important;
+    height: 16px !important;
+  }
+  .pk-bottom-dock,
+  .pk-controls-panel {
+    flex-shrink: 0 !important;
+    gap: 4px !important;
+    padding: 6px !important;
+  }
+  .pk-log-box {
+    max-height: 44px !important;
+    font-size: 0.68rem !important;
+    padding: 4px 6px !important;
+  }
+  .pk-actions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 5px !important;
+  }
+  .pk-action-btn {
+    min-height: 42px !important;
+    padding: 4px 6px !important;
+    font-size: 0.72rem !important;
+  }
+  .pk-action-btn strong {
+    font-size: 0.74rem !important;
+  }
+  .pk-action-btn small {
+    font-size: 0.64rem !important;
+  }
+}
+
+/* Mobile NGANG (Landscape, màn hình thấp <= 520px) */
+@media (max-height: 520px) and (orientation: landscape) {
+  .expedition-modal-card,
+  .jade-drawer,
+  .modal-card {
+    height: 98dvh !important;
+    max-height: 98dvh !important;
+    width: 98vw !important;
+    max-width: 98vw !important;
+    padding: 6px 8px !important;
+  }
+  .pk-arena-shell {
+    padding: 4px 8px !important;
+    gap: 4px !important;
+  }
+  .pk-turn-badge {
+    padding: 2px 10px !important;
+    font-size: 0.7rem !important;
+  }
+  .pk-stage {
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+    max-height: 48dvh !important;
+  }
+  .pk-player-sprite {
+    height: 68px !important;
+  }
+  .boss-battle-cutout-wrap,
+  .mob-battle-cutout-wrap {
+    width: 92px !important;
+    height: 84px !important;
+  }
+  .boss-battle-cutout-img,
+  .mob-battle-cutout-img {
+    max-width: 88px !important;
+    max-height: 76px !important;
+  }
+  .pk-stat-card {
+    padding: 4px 7px !important;
+    font-size: 0.68rem !important;
+  }
+  .pk-bottom-dock {
+    display: grid !important;
+    grid-template-columns: 1fr 2fr !important;
+    gap: 6px !important;
+    padding: 4px 6px !important;
+  }
+  .pk-log-box {
+    max-height: 82px !important;
+    font-size: 0.66rem !important;
+  }
+  .pk-actions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px !important;
+  }
+  .pk-action-btn {
+    min-height: 36px !important;
+    padding: 3px 5px !important;
+  }
+  .pk-action-btn strong {
+    font-size: 0.72rem !important;
+  }
+}
+
+/* === FIX KH-META-ROW NO-WRAP V25 === */
+.kh-meta-row {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  line-height: 24px !important;
+  overflow: hidden !important;
+}
+.kh-meta-row > span {
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.kh-meta-row > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.kh-meta-row > span:last-child {
+  flex-shrink: 0 !important;
+  min-width: 82px;
+  text-align: right;
+}
+@media (max-width: 760px) {
+  .kh-meta-row {
+    font-size: 0.72rem !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    line-height: 22px !important;
+  }
+  .kh-meta-row > span:last-child {
+    min-width: 74px;
+  }
+}
