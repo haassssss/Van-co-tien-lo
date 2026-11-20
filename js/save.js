@@ -15,8 +15,8 @@ window.TuTien.Save = {
       data.lastSavedAt = Date.now();
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       
-      if (State.data.inventory && Array.isArray(State.data.inventory.items)) {
-        State.data.inventory.items.forEach(it => {
+      if (data.inventory && Array.isArray(data.inventory.items)) {
+        data.inventory.items.forEach(it => {
           if (it.icon === '🪨' || it.templateId === 'da_khoang') it.icon = '⛰️';
           if (it.icon === '🪵' || it.templateId === 'go_linh_moc') it.icon = '🌲';
           if (it.icon === '🪙' || it.templateId === 'vang_tinh_kim') it.icon = '🌕';
@@ -152,6 +152,30 @@ window.TuTien.Save = {
       window.TuTien.Shop.ensureState();
       window.TuTien.Shop.syncCycle();
     }
+    if (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.inventory && Array.isArray(window.TuTien.State.data.inventory.items)) {
+      const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+      window.TuTien.State.data.inventory.items.forEach(it => {
+        if (it.category === 'artifact' && !it.combatStats) {
+          const tier = Math.max(1, Math.min(5, it.qualityTier || (it.quality && it.quality.tier) || 1));
+          const tp = tierPowerTable[tier] || 1.0;
+          const sr = tier === 1 ? 2 : tier === 2 ? 4 : 7;
+          const rf = 1 + (sr - 1) * 0.22;
+          const bs = 0.08 * tp * rf;
+          it.mult = tp;
+          it.passiveBonus = Number((bs * 1.08).toFixed(3));
+          it.clickBonus = Number((bs * 1.08).toFixed(3));
+          it.combatStats = {
+            hp: Math.round(60 * tp * rf),
+            mp: Math.round(40 * tp * rf),
+            attack: Math.round(16 * tp * rf),
+            speed: Math.round(4 * tp * (1 + (sr - 1) * 0.15))
+          };
+          it.qualityColor = it.qualityColor || (it.quality && it.quality.color) || '#cbd5e1';
+          it.effectDesc = `+${Math.round(it.passiveBonus * 100)}% Nền • +${Math.round(it.clickBonus * 100)}% Click • ⚔️+${it.combatStats.attack} Công • ❤️+${it.combatStats.hp} Máu • 💨+${it.combatStats.speed} Tốc`;
+        }
+      });
+    }
+    // _repairedShopArtifacts
     window.TuTien.State.resetRuntime();
 
     if (checkOffline && parsed.lastSavedAt) {

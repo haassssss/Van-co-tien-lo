@@ -473,9 +473,21 @@ window.TuTien.Shop = {
       const bp = (window.TuTien.ARTIFACT_BLUEPRINTS || []).find(x => x.id === item.refId);
       const bag = State.data.inventory;
       const tier = Math.max(1, Math.min(3, item.phamGiai || 1));
-      const baseStat = [18, 85, 320][tier - 1] || 18;
+      const tierPowerTable = { 1: 1.0, 2: 2.2, 3: 4.5, 4: 9.0, 5: 18.0 };
+      const tierPower = tierPowerTable[tier] || 1.0;
+      const smithRank = tier === 1 ? 2 : tier === 2 ? 4 : 7;
+      const rankFactor = 1 + (smithRank - 1) * 0.22;
+      const baseStat = 0.08 * tierPower * rankFactor;
+      const passiveBonus = Number((baseStat * 1.08).toFixed(3));
+      const clickBonus = Number((baseStat * 1.08).toFixed(3));
+      const combatHp = Math.round(60 * tierPower * rankFactor);
+      const combatMp = Math.round(40 * tierPower * rankFactor);
+      const combatAtk = Math.round(16 * tierPower * rankFactor);
+      const combatSpd = Math.round(4 * tierPower * (1 + (smithRank - 1) * 0.15));
+      const desc = `+${Math.round(passiveBonus * 100)}% Nền • +${Math.round(clickBonus * 100)}% Click • ⚔️+${combatAtk} Công • ❤️+${combatHp} Máu • 💨+${combatSpd} Tốc`;
+
       for (let k = 0; k < qty; k++) {
-        bag.items.push({
+        bag.items.unshift({
           uid: (bag.nextUid = (bag.nextUid || 1) + 1),
           category: 'artifact',
           templateId: item.refId,
@@ -484,15 +496,14 @@ window.TuTien.Shop = {
           quality: qObj,
           qualityTier: tier,
           qualityName: qObj.name,
+          qualityColor: qObj.color,
+          mult: tierPower,
+          passiveBonus,
+          clickBonus,
+          combatStats: { hp: combatHp, mp: combatMp, attack: combatAtk, speed: combatSpd },
           equipped: false,
           qty: 1,
-          bonusStats: {
-            attack: Math.round(baseStat * 1.1),
-            hp: Math.round(baseStat * 4.5),
-            mp: Math.round(baseStat * 1.8),
-            speed: Math.round(baseStat * 0.4)
-          },
-          effectDesc: item.moTa
+          effectDesc: desc
         });
       }
       return;

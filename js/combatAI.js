@@ -6,9 +6,39 @@ window.TuTien = window.TuTien || {};
 
 window.TuTien.CombatAI = {
   pickMonsterSkill(enemy, turnNumber) {
-    const list = enemy.chieu || ['can_xe'];
-    const key = list[(turnNumber - 1) % list.length];
-    return (window.TuTien.MONSTER_SKILLS && window.TuTien.MONSTER_SKILLS[key]) || window.TuTien.MONSTER_SKILLS.can_xe;
+    const allSkills = window.TuTien.MONSTER_SKILLS || {};
+    const baseList = Array.isArray(enemy.chieu) && enemy.chieu.length ? enemy.chieu.slice() : ['can_xe'];
+
+    // Bổ sung kỹ năng ngẫu nhiên theo vai trò để quái & boss đa dạng, khó lường hơn
+    const bonusPool = enemy.isBoss
+      ? ['chay_mau_trao', 'dien_giat_loi', 'ho_the_yeu_giap', 'yeu_than_toc', 'huyet_sat_hoi_phuc', 'am_sat_suy_yeu']
+      : enemy.isElite
+        ? ['chay_mau_trao', 'dien_giat_loi', 'ho_the_yeu_giap', 'huyet_sat_hoi_phuc', 'am_sat_suy_yeu']
+        : ['chay_mau_trao', 'dien_giat_loi', 'ho_the_yeu_giap', 'yeu_than_toc'];
+
+    const pool = Array.from(new Set([...baseList, ...bonusPool])).filter(k => allSkills[k]);
+    const activeIds = new Set((enemy.statuses || []).map(st => st.id));
+
+    // Nếu máu dưới 55% và có chiêu hồi phục -> 35% cơ hội tự hồi máu
+    if (enemy.currentHp / Math.max(1, enemy.maxHp) < 0.55 && pool.includes('huyet_sat_hoi_phuc') && Math.random() < 0.35) {
+      return allSkills.huyet_sat_hoi_phuc;
+    }
+
+    // Lọc bỏ buff nếu quái đã có sẵn buff đó để tránh lãng phí lượt
+    const candidates = pool.filter(k => {
+      const sk = allSkills[k];
+      if (sk.loai === 'buff' && sk.hieuUng && sk.hieuUng[0] && activeIds.has(sk.hieuUng[0].id)) {
+        return false;
+      }
+      if (sk.loai === 'hoi_phuc' && enemy.currentHp / Math.max(1, enemy.maxHp) > 0.78) {
+        return false;
+      }
+      return true;
+    });
+
+    const finalPool = candidates.length ? candidates : baseList;
+    const pickedKey = finalPool[Math.floor(Math.random() * finalPool.length)];
+    return allSkills[pickedKey] || allSkills.can_xe;
   },
 
   pickPlayerAutoAction(combatState) {

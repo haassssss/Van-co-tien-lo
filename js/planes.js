@@ -50,6 +50,10 @@ window.TuTien.Planes = {
     return (window.TuTien.MONSTERS || []).find(m => m.viDien === planeId && m.isBoss) || null;
   },
 
+  getBossesForPlane(planeId) {
+    return (window.TuTien.MONSTERS || []).filter(m => m.viDien === planeId && m.isBoss);
+  },
+
   getBossRespawnRemainingMs(bossId) {
     const d = this.ensureState();
     const until = (d && d.bossRespawns && d.bossRespawns[bossId]) || 0;

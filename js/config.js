@@ -287,7 +287,8 @@ window.TuTien.CONFIG = {
       tan_thu_gioi:    { mob: [15, 0, 0],  elite: [45, 1, 0],  boss: [80, 3, 0] },
       huyen_linh_gioi: { mob: [0, 3, 0],   elite: [0, 8, 0],   boss: [0, 20, 1] },
       kiep_van_gioi:   { mob: [0, 12, 0],  elite: [0, 28, 1],  boss: [0, 50, 3] },
-      hong_mong_gioi:  { mob: [0, 35, 1],  elite: [0, 60, 2],  boss: [0, 0, 8] }
+      hong_mong_gioi:     { mob: [0, 35, 1],  elite: [0, 60, 2],  boss: [0, 0, 8] },
+      de_lo_chien_truong: { mob: [0, 60, 2],  elite: [0, 0, 6],   boss: [0, 0, 18] }
     }
   },
 
@@ -304,6 +305,16 @@ window.TuTien.CONFIG = {
     mapRefreshSec: 300,              // Bản đồ tự làm mới quái sau 5 phút (300s)
     bossRespawnSec: 1800,            // Boss Thế Giới hồi sinh sau 30 phút (1800s)
     outOfCombatHealPctPerSec: 0.05 / 60, // Tự hồi tự nhiên 5% Máu & Linh Lực mỗi phút
-    defenseDivisor: 100              // Công thức giảm thương: 100 / (100 + DEF)
+    defenseDivisor: 100,             // Công thức giảm thương: 100 / (100 + DEF)
+    bossHitCapPct: 0.12,             // Trần sát thương 1 đòn lên Boss: tối đa 12% máu (~9 đòn hạ Boss)
+    eliteHitCapPct: 0.25,            // Trần sát thương 1 đòn lên Tinh Anh: tối đa 25% máu
+    bossFollowPlayerMult: 0.7,       // Máu Boss tăng theo 70% hệ số cộng dồn người chơi
+    eliteFollowPlayerMult: 0.4,      // Máu Tinh Anh tăng theo 40% hệ số cộng dồn người chơi
+    realmSuppressionPerTier: 0.10,   // Áp đảo / Áp chế cảnh giới: ±10% sát thương mỗi 1 cảnh giới chênh lệch
+    realmSuppressionMinMult: 0.05,   // Sàn sát thương tối thiểu (5%) khi bị địch áp chế quá nhiều cảnh giới
+    monsterAtkMult: 1.65,            // Hệ số tăng sát thương cơ bản của Quái & Boss
+    bossAtkFollowPlayerMult: 0.45,   // Sát thương Boss tăng theo 45% hệ số máu cộng dồn người chơi (khi ngang/hơn cảnh giới)
+    eliteAtkFollowPlayerMult: 0.28,  // Sát thương Tinh Anh tăng theo 28% hệ số máu cộng dồn người chơi
+    mobAtkFollowPlayerMult: 0.15     // Sát thương Quái thường tăng theo 15% hệ số máu cộng dồn người chơi
   }
 };

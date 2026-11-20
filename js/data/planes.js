@@ -60,5 +60,18 @@ window.TuTien.PLANES = [
     unlockRealmIdx: 64,  // Đạt Độ Kiếp - Viên Mãn
     bossRealmIdx: 103,   // Chứng Đạo Cảnh - Đỉnh Phong
     bossId: 'boss_hong_mong_gioi'
+  },
+  {
+    id: 'de_lo_chien_truong',
+    ten: 'Đế Lộ Chiến Trường',
+    moTa: 'Chiến trường cổ đại của các bậc Chuẩn Đế tranh đoạt Đế Vị, quy tụ 3 Boss Thế Giới tối thượng.',
+    bgImage: 'assets/bg_de_lo_chien_truong.jpg',
+    bgGradient: 'linear-gradient(180deg, #4c0519 0%, #16040a 100%)',
+    accentColor: '#fb7185',
+    minRealmIdx: 99,     // Tri Đạo Cảnh - Viên Mãn
+    maxRealmIdx: 129,    // Chuẩn Đế - Viên Mãn
+    unlockRealmIdx: 99,  // Đạt Tri Đạo Cảnh - Viên Mãn
+    bossRealmIdx: 132,   // Phong Đế - Hậu Kỳ
+    bossId: 'boss_de_lo_1'
   }
 ];

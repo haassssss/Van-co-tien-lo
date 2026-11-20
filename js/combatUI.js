@@ -32,6 +32,75 @@ window.TuTien.CombatUI = {
     }
   },
 
+  renderStatusVisualOverlay(unit) {
+    const ids = new Set((unit && unit.statuses || []).map(st => st.id));
+    if (!ids.size) return '';
+    let html = '';
+    if (ids.has('dong_bang')) {
+      html += `
+        <div class="vfx-layer vfx-frozen">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <polygon points="60,4 106,28 112,86 60,116 8,86 14,28" fill="rgba(103,232,249,0.34)" stroke="#a5f3fc" stroke-width="3"/>
+            <polyline points="22,36 60,18 98,36 88,92 60,108 32,92" fill="none" stroke="rgba(224,242,254,0.8)" stroke-width="2"/>
+            <line x1="60" y1="8" x2="60" y2="112" stroke="rgba(224,242,254,0.55)" stroke-width="1.5"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('thieu_dot')) {
+      html += `
+        <div class="vfx-layer vfx-burn">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <path d="M22,104 Q10,74 28,50 Q24,72 36,68 Q34,42 54,18 Q56,48 68,38 Q84,22 86,58 Q102,52 96,104 Z"
+                  fill="rgba(249,115,22,0.36)" stroke="#fde047" stroke-width="2.2"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('dien_giat') || ids.has('tri_hoan') || ids.has('troi_buoc')) {
+      html += `
+        <div class="vfx-layer vfx-shock">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <polyline points="24,14 42,42 28,50 48,88" fill="none" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"/>
+            <polyline points="96,18 76,48 90,56 72,96" fill="none" stroke="#fde047" stroke-width="3.2" stroke-linecap="round"/>
+            <polyline points="56,8 66,30 52,38 64,66" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('xich_khoa')) {
+      html += `
+        <div class="vfx-layer vfx-chains">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <line x1="12" y1="26" x2="108" y2="94" stroke="#f43f5e" stroke-width="6" stroke-dasharray="10 6" stroke-linecap="round"/>
+            <line x1="108" y1="26" x2="12" y2="94" stroke="#fda4af" stroke-width="4.5" stroke-dasharray="10 6" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="11" fill="rgba(127,29,29,0.85)" stroke="#facc15" stroke-width="2.5"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('chay_mau') || ids.has('pha_giap')) {
+      html += `
+        <div class="vfx-layer vfx-bleed">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <path d="M28,28 Q34,42 28,48 Q22,42 28,28 Z M92,34 Q98,48 92,54 Q86,48 92,34 Z M42,76 Q48,90 42,96 Q36,90 42,76 Z M80,72 Q86,86 80,92 Q74,86 80,72 Z"
+                  fill="#ef4444" stroke="#fecaca" stroke-width="1.2"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('trung_doc')) {
+      html += `
+        <div class="vfx-layer vfx-poison">
+          <svg viewBox="0 0 120 120" class="vfx-svg">
+            <circle cx="26" cy="84" r="7" fill="rgba(163,230,53,0.55)" stroke="#d9f99d" stroke-width="1.5"/>
+            <circle cx="94" cy="70" r="9" fill="rgba(168,85,247,0.55)" stroke="#e9d5ff" stroke-width="1.5"/>
+            <circle cx="34" cy="36" r="6" fill="rgba(163,230,53,0.55)" stroke="#d9f99d" stroke-width="1.5"/>
+            <circle cx="84" cy="28" r="5" fill="rgba(168,85,247,0.55)" stroke="#e9d5ff" stroke-width="1.5"/>
+          </svg>
+        </div>`;
+    }
+    if (ids.has('tang_cong') || ids.has('ho_the') || ids.has('tang_toc')) {
+      html += `<div class="vfx-layer vfx-buff-aura"></div>`;
+    }
+    return html;
+  },
+
   renderStatusPills(unit) {
     const Status = window.TuTien.Status;
     const list = (unit && unit.statuses) || [];
@@ -114,6 +183,13 @@ window.TuTien.CombatUI = {
       <div class="pk-arena-shell" style="${bgStyle}">
         <div class="pk-top-row">
           <div class="pk-turn-badge">HIỆP ${s.turn} • ${plane ? plane.ten : ''}</div>
+          ${(() => {
+            const sup = Combat.getRealmSuppressionInfo ? Combat.getRealmSuppressionInfo() : { diff: 0, label: '' };
+            if (!sup.label) return '';
+            const col = sup.diff > 0 ? '#86efac' : '#fda4af';
+            const bdr = sup.diff > 0 ? 'rgba(74,222,128,0.55)' : 'rgba(244,63,94,0.6)';
+            return `<div class="pk-turn-badge" style="color:${col};border-color:${bdr};font-size:0.74rem;margin-left:8px;">${sup.label}</div>`;
+          })()}
           <button id="btn-c2-auto" class="btn-ancient-sm ${Combat.autoBattle ? 'affordable' : ''}" style="position:absolute;right:0;">
             ⚡ Tự Động: ${Combat.autoBattle ? 'Bật' : 'Tắt'}
           </button>
@@ -138,7 +214,7 @@ window.TuTien.CombatUI = {
               <div class="c-status-row">${this.renderStatusPills(p)}</div>
             </div>
             <div class="pk-platform-wrap">
-              <img src="${playerSprite}" class="pk-player-sprite" alt="${p.name}" />
+              <div class="pk-vfx-host ${(p.statuses || []).some(st => st.id === 'dong_bang') ? 'unit-is-frozen' : ''}"><img src="${playerSprite}" class="pk-player-sprite" alt="${p.name}" />${this.renderStatusVisualOverlay(p)}</div>
               <div class="pk-platform"></div>
             </div>
           </div>
@@ -147,7 +223,7 @@ window.TuTien.CombatUI = {
           <div class="pk-side pk-enemy-side" style="position:relative;">
             ${eFloats}
             <div class="pk-platform-wrap">
-              <div class="pk-enemy-sprite-box">${enemyBadge}</div>
+              <div class="pk-enemy-sprite-box pk-vfx-host ${(e.statuses || []).some(st => st.id === 'dong_bang') ? 'unit-is-frozen' : ''}">${enemyBadge}${this.renderStatusVisualOverlay(e)}</div>
               <div class="pk-platform enemy-platform"></div>
             </div>
             <div class="pk-stat-card pk-enemy-card">

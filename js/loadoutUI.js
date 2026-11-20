@@ -7,6 +7,7 @@ window.TuTien = window.TuTien || {};
 
 window.TuTien.LoadoutUI = {
   activeSlotIdx: 0,
+  sortMode: 'grade_desc', // 'grade_desc' | 'grade_asc' | 'name_asc'
 
   openModal() {
     const ov = document.getElementById('loadout-modal-overlay');
@@ -79,7 +80,22 @@ window.TuTien.LoadoutUI = {
     }).join('');
 
     const showDetail = window.TuTien.Panels && window.TuTien.Panels.isDetailedMode();
-    const listHtml = (window.TuTien.COMBAT_TECHNIQUES || []).map(t => {
+    const sortedTechs = (window.TuTien.COMBAT_TECHNIQUES || []).slice().sort((a, b) => {
+      const la = Tech.isLearned(a.id) ? 1 : 0;
+      const lb = Tech.isLearned(b.id) ? 1 : 0;
+      if (la !== lb) return lb - la; // Đã học xếp trên, chưa học (???) xếp dưới
+      if (this.sortMode === 'name_asc') {
+        return (a.ten || '').localeCompare(b.ten || '', 'vi');
+      }
+      const ta = Tech.getGradeTier(a.id) || a.phamGiaiKhoiDau || 1;
+      const tb = Tech.getGradeTier(b.id) || b.phamGiaiKhoiDau || 1;
+      if (this.sortMode === 'grade_asc') {
+        return ta !== tb ? ta - tb : (a.ten || '').localeCompare(b.ten || '', 'vi');
+      }
+      return ta !== tb ? tb - ta : (a.ten || '').localeCompare(b.ten || '', 'vi');
+    });
+
+    const listHtml = sortedTechs.map(t => {
       const learned = Tech.isLearned(t.id);
       if (!learned) {
         return `
@@ -141,6 +157,12 @@ window.TuTien.LoadoutUI = {
           <strong>Tổng Buff đi kèm đang kích hoạt:</strong> ${passives.labels.length ? passives.labels.join(' • ') : 'Chưa có'}
         </div>
       </div>
+      <div class="loadout-sort-bar">
+        <span style="font-size:0.74rem;color:var(--ivory-muted);">Sắp xếp:</span>
+        <button class="btn-ancient-sm btn-sort-ctech ${this.sortMode === 'grade_desc' ? 'affordable' : ''}" data-sort="grade_desc">🌟 Phẩm cao → thấp</button>
+        <button class="btn-ancient-sm btn-sort-ctech ${this.sortMode === 'grade_asc' ? 'affordable' : ''}" data-sort="grade_asc">🔽 Phẩm thấp → cao</button>
+        <button class="btn-ancient-sm btn-sort-ctech ${this.sortMode === 'name_asc' ? 'affordable' : ''}" data-sort="name_asc">🔤 Tên A → Z</button>
+      </div>
       <div class="jade-cards-stack">${listHtml}</div>
     `;
 
@@ -155,6 +177,13 @@ window.TuTien.LoadoutUI = {
       btn.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (Tech.buyLearn(btn.getAttribute('data-id'))) this.renderInto(container);
+      });
+    });
+    container.querySelectorAll('.btn-sort-ctech').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        this.sortMode = btn.getAttribute('data-sort') || 'grade_desc';
+        this.renderInto(container);
       });
     });
     container.querySelectorAll('.btn-equip-ctech').forEach(btn => {

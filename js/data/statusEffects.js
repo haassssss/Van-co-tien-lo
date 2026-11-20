@@ -63,6 +63,18 @@ window.TuTien.STATUS_EFFECTS = {
     spdMod: -0.30,
     moTa: 'Giảm 30% Tốc Độ (Thân Pháp).'
   },
+  chay_mau: {
+    id: 'chay_mau', ten: 'Chảy Máu', icon: '🩸', color: '#ef4444',
+    loai: 'gay_hai', soHiepMacDinh: 3, congDonToiDa: 2, giaiTruDuoc: true,
+    dotHpPct: 0.05,
+    moTa: 'Mất 5% Máu tối đa mỗi hiệp (tối đa 2 lớp).'
+  },
+  dien_giat: {
+    id: 'dien_giat', ten: 'Điện Giật', icon: '⚡', color: '#38bdf8',
+    loai: 'gay_hai', soHiepMacDinh: 2, congDonToiDa: 1, giaiTruDuoc: true,
+    dotHpPct: 0.04, spdMod: -0.25,
+    moTa: 'Bị dòng lôi điện giật mất 4% Máu mỗi hiệp và giảm 25% Thân Pháp.'
+  },
   // Các trạng thái có lợi (từ chiêu Buff — không mất lượt)
   tang_cong: {
     id: 'tang_cong', ten: 'Chiến Ý', icon: '⚔️', color: '#fde047',

@@ -518,6 +518,27 @@ window.TuTien.Expedition = {
         }
       };
       const bCfg = bossStyles[mob.svgKey] || bossStyles.dragon_boss;
+      const accent = mob.bossAccent || bCfg.accent;
+      if (mob.bossImage) {
+        const isCombatBig = scaleClass && scaleClass.includes('pk-big-token');
+        if (isCombatBig) {
+          const spriteSrc = mob.bossSprite || mob.bossImage;
+          return `
+            <div class="boss-battle-cutout-wrap" style="--boss-accent:${accent};">
+              <img src="${spriteSrc}?v=coquyen19" class="boss-battle-cutout-img" alt="${mob.bossSubtitle || mob.name || 'Boss Thế Giới'}" />
+              <div class="boss-battle-cutout-name">${mob.bossSubtitle || 'Boss Thế Giới'}</div>
+            </div>
+          `;
+        }
+        return `
+          <div class="xianxia-token dragon-boss-token boss-img-token ${scaleClass}" style="--token-accent:${accent}">
+            <div class="boss-map-avatar-ring" style="border-color:${accent};box-shadow:0 0 14px ${accent};">
+              <img src="${mob.bossImage}?v=coquyen19" class="boss-map-avatar-img" alt="${mob.bossSubtitle || 'Boss'}" />
+            </div>
+            <span class="token-type-pill" style="background:${bCfg.pillBg};border-color:${accent};color:#fef08a;">🐉 BOSS</span>
+          </div>
+        `;
+      }
       return `
         <div class="xianxia-token dragon-boss-token ${scaleClass}" style="--token-accent:${bCfg.accent}">
           <svg class="token-frame-svg" viewBox="0 0 64 64">
@@ -538,6 +559,13 @@ window.TuTien.Expedition = {
           : 'assets/sprites_walk/nam/nam_di_xuong_01.png';
       const ringColor = mob.gender === 'female' || mob.svgKey === 'cultivator_female' ? '#f472b6' : '#38bdf8';
 
+      if (scaleClass && scaleClass.includes('pk-big-token')) {
+        return `
+          <div class="mob-battle-cutout-wrap" style="--boss-accent:${ringColor};">
+            <img src="${spritePath}" class="pk-player-sprite" style="height:125px;width:auto;" alt="${mob.name || 'Tu Sĩ'}" />
+          </div>
+        `;
+      }
       return `
         <div class="xianxia-token cultivator-token ${scaleClass}" style="--token-accent:${ringColor}">
           <svg class="token-frame-svg" viewBox="0 0 64 64">
@@ -668,10 +696,85 @@ window.TuTien.Expedition = {
           <polygon points="39,29 34,31 38,34" fill="#ffffff"/>
           <path d="M28,40 L32,44 L36,40" fill="none" stroke="#bae6fd" stroke-width="1.8"/>
         `
+      },
+      qilin: {
+        accent: '#facc15',
+        art: `
+          <path d="M22,12 L28,22 M42,12 L36,22 M32,8 L32,20" stroke="#fde047" stroke-width="2.2" stroke-linecap="round"/>
+          <polygon points="32,18 46,27 42,46 32,54 22,46 18,27" fill="#422006" stroke="#facc15" stroke-width="1.8"/>
+          <polygon points="24,30 30,32 26,35" fill="#fef08a"/>
+          <polygon points="40,30 34,32 38,35" fill="#fef08a"/>
+          <path d="M26,43 Q32,48 38,43" fill="none" stroke="#fde047" stroke-width="1.8"/>
+        `
+      },
+      scorpion: {
+        accent: '#a855f7',
+        art: `
+          <path d="M16,26 Q14,16 24,18 M48,26 Q50,16 40,18" fill="none" stroke="#c084fc" stroke-width="3" stroke-linecap="round"/>
+          <ellipse cx="32" cy="34" rx="12" ry="15" fill="#2e1065" stroke="#a855f7" stroke-width="1.7"/>
+          <path d="M32,49 Q46,44 44,24 L38,16" fill="none" stroke="#e879f9" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="28" cy="29" r="2" fill="#f43f5e"/>
+          <circle cx="36" cy="29" r="2" fill="#f43f5e"/>
+        `
+      },
+      turtle: {
+        accent: '#2dd4bf',
+        art: `
+          <polygon points="32,14 48,24 46,44 32,52 18,44 16,24" fill="#134e4a" stroke="#5eead4" stroke-width="1.8"/>
+          <polygon points="32,20 41,28 38,41 26,41 23,28" fill="#0f766e" stroke="#99f6e4" stroke-width="1.3"/>
+          <circle cx="32" cy="14" r="5" fill="#115e59" stroke="#5eead4" stroke-width="1.4"/>
+          <circle cx="30" cy="13" r="1.3" fill="#fde047"/>
+          <circle cx="34" cy="13" r="1.3" fill="#fde047"/>
+        `
+      },
+      demon_knight: {
+        accent: '#fb7185',
+        art: `
+          <path d="M16,14 L25,24 M48,14 L39,24" stroke="#fda4af" stroke-width="2.4" stroke-linecap="round"/>
+          <polygon points="32,14 46,24 43,46 32,54 21,46 18,24" fill="#271019" stroke="#fb7185" stroke-width="1.8"/>
+          <rect x="22" y="28" width="20" height="5" rx="2" fill="#0f172a" stroke="#f43f5e" stroke-width="1"/>
+          <circle cx="27" cy="30.5" r="1.8" fill="#f43f5e"/>
+          <circle cx="37" cy="30.5" r="1.8" fill="#f43f5e"/>
+          <path d="M26,42 L32,46 L38,42" fill="none" stroke="#fda4af" stroke-width="1.8"/>
+        `
+      },
+      star_beast: {
+        accent: '#38bdf8',
+        art: `
+          <polygon points="32,8 37,22 52,22 40,32 45,48 32,39 19,48 24,32 12,22 27,22" fill="#0c2444" stroke="#38bdf8" stroke-width="1.6"/>
+          <circle cx="32" cy="30" r="8" fill="#0369a1" stroke="#e0f2fe" stroke-width="1.2"/>
+          <circle cx="29" cy="29" r="1.7" fill="#fef08a"/>
+          <circle cx="35" cy="29" r="1.7" fill="#fef08a"/>
+        `
       }
     };
 
     const cfg = svgMap[mob.svgKey] || svgMap.wolf;
+    if (scaleClass && scaleClass.includes('pk-big-token')) {
+      const spriteByKey = {
+        wolf: 'assets/mob_predator_sprite.png',
+        tiger: 'assets/mob_predator_sprite.png',
+        fox: 'assets/mob_predator_sprite.png',
+        ice_beast: 'assets/mob_predator_sprite.png',
+        qilin: 'assets/mob_predator_sprite.png',
+        snake: 'assets/mob_serpent_sprite.png',
+        scorpion: 'assets/mob_serpent_sprite.png',
+        golem: 'assets/mob_golem_sprite.png',
+        bear: 'assets/mob_golem_sprite.png',
+        ape: 'assets/mob_golem_sprite.png',
+        turtle: 'assets/mob_golem_sprite.png',
+        demon_knight: 'assets/mob_golem_sprite.png',
+        eagle: 'assets/mob_avian_sprite.png',
+        phoenix: 'assets/mob_avian_sprite.png',
+        star_beast: 'assets/mob_avian_sprite.png'
+      };
+      const mobSprite = spriteByKey[mob.svgKey] || 'assets/mob_predator_sprite.png';
+      return `
+        <div class="mob-battle-cutout-wrap" style="--boss-accent:${cfg.accent};">
+          <img src="${mobSprite}?v=coquyen21" class="mob-battle-cutout-img" alt="${mob.name || 'Yêu Thú'}" />
+        </div>
+      `;
+    }
     return `
       <div class="xianxia-token monster-token ${scaleClass}" style="--token-accent:${cfg.accent}">
         <svg class="token-frame-svg" viewBox="0 0 64 64">
@@ -1228,31 +1331,35 @@ window.TuTien.Expedition = {
       })
       .join('');
 
-    // Boss Thế Giới của Vị Diện hiện tại (cố định ở góc trên phải)
-    const bossDef = Planes ? Planes.getBossForPlane(curPlane.id) : null;
-    let bossHtml = '';
-    if (bossDef) {
+    // Boss Thế Giới của Vị Diện hiện tại (1 boss ở vị diện 1-4, 3 boss khác nhau ở Đế Lộ Chiến Trường)
+    const bossList = Planes && Planes.getBossesForPlane
+      ? Planes.getBossesForPlane(curPlane.id)
+      : (Planes && Planes.getBossForPlane(curPlane.id) ? [Planes.getBossForPlane(curPlane.id)] : []);
+    const bossHtml = bossList.map(bossDef => {
       const bossCdMs = Planes.getBossRespawnRemainingMs(bossDef.id);
       const bossDead = bossCdMs > 0;
       const bossRealm = (window.TuTien.REALMS[bossDef.canhGioiIdx] || { fullName: '' }).fullName;
-      bossHtml = `
+      const pos = bossDef.mapPos || { x: this.dragonBoss.x, y: this.dragonBoss.y };
+      const bAccent = bossDef.bossAccent || '#facc15';
+      const titleLine = bossDef.bossSubtitle ? `🐉 ${bossDef.bossSubtitle}` : '🐉 Boss Thế Giới';
+      return `
         <div class="newbie-mob-spot dragon-boss-spot ${bossDead ? 'mob-respawning' : ''}"
              data-mob-id="${bossDef.id}"
-             style="left:${this.dragonBoss.x}px;top:${this.dragonBoss.y}px;">
-          <div class="mob-spot-tag" style="background:linear-gradient(135deg,#450a0a,#7f1d1d);border-color:#facc15;">
-            <div class="mob-spot-name" style="color:#fde047;">🐉 Boss Thế Giới</div>
+             style="left:${pos.x}px;top:${pos.y}px;">
+          <div class="mob-spot-tag" style="background:linear-gradient(135deg,#3b0a0a,#7f1d1d);border-color:${bAccent};">
+            <div class="mob-spot-name" style="color:${bAccent};">${titleLine}</div>
             <div class="mob-spot-realm" style="color:#fecaca;">
               ${bossDead ? `⏳ ${this.formatMinSec(bossCdMs)}` : bossRealm}
             </div>
           </div>
           ${
             bossDead
-              ? `<div class="mob-spot-circle" style="border-color:#facc15;"><span class="mob-respawn-timer">⏳ ${this.formatMinSec(bossCdMs)}</span></div>`
+              ? `<div class="mob-spot-circle" style="border-color:${bAccent};"><span class="mob-respawn-timer">⏳ ${this.formatMinSec(bossCdMs)}</span></div>`
               : this.getCustomEntityBadgeHTML(bossDef)
           }
         </div>
       `;
-    }
+    }).join('');
 
     this.mobsLayerEl.innerHTML = regularHtml + bossHtml;
 
@@ -1266,7 +1373,9 @@ window.TuTien.Expedition = {
           return;
         }
         const mobId = el.getAttribute('data-mob-id');
-        if (bossDef && mobId === bossDef.id) {
+        const clickedBoss = bossList.find(b => b.id === mobId);
+        if (clickedBoss) {
+          const bossDef = clickedBoss;
           this.openPlaneBossPopup(bossDef);
         } else {
           this.openMobPopup(mobId);
@@ -2252,15 +2361,15 @@ window.TuTien.Expedition = {
           he: gElem,
           svgKey: sr.guardianSvg || 'golem',
           entityType: 'monster',
-          canhGioiIdx: pRealmIdx,
-          realmLabelOverride: sr.recommendRealm || 'Thủ Vệ Bí Cảnh',
+          canhGioiIdx: Math.min(139, pRealmIdx + Math.max(0, ((sr.tier || 1) - 1) * 2)),
+          realmLabelOverride: '???',
           chieu: ['can_xe', 'thach_ap', 'cuong_no'],
           ai: 'cycle',
           khangHieuUng: Math.min(0.4, 0.08 * (sr.tier || 1)),
           phanThuong: ['vang_tinh_kim'],
           customStats: {
-            maxHp: Math.max(120, Math.round(pStats.maxHp * 0.9)),
-            attack: Math.max(15, Math.round(pStats.attack * 0.72)),
+            maxHp: Math.max(120, Math.round(pStats.maxHp * (0.85 + (sr.tier || 1) * 0.35))),
+            attack: Math.max(15, Math.round(pStats.attack * (0.68 + (sr.tier || 1) * 0.16))),
             defense: Math.max(15, Math.round((20 + pRealmIdx * 4.2) * 0.9)),
             speed: Math.max(10, Math.round(pStats.speed * 0.9))
           }
@@ -2296,15 +2405,15 @@ window.TuTien.Expedition = {
           svgKey: sr.guardianSvg || 'tiger',
           entityType: 'monster',
           isElite: true,
-          canhGioiIdx: Math.min(139, pRealmIdx + (sr.tier >= 3 ? 2 : 0)),
-          realmLabelOverride: `${sr.rankLabel}`,
+          canhGioiIdx: Math.min(139, pRealmIdx + Math.max(1, (sr.tier || 1) * 2)),
+          realmLabelOverride: '???',
           chieu: ['long_uy', 'hoa_cau', 'xich_troi', 'cuong_no'],
           ai: 'cycle',
           khangHieuUng: Math.min(0.55, 0.15 + 0.08 * (sr.tier || 1)),
           phanThuong: ['vang_tinh_kim', 'huyet_chan_long'],
           customStats: {
-            maxHp: Math.max(220, Math.round(pStats.maxHp * (1.1 + sr.tier * 0.14))),
-            attack: Math.max(22, Math.round(pStats.attack * (0.82 + sr.tier * 0.06))),
+            maxHp: Math.max(220, Math.round(pStats.maxHp * (1.15 + (sr.tier || 1) * 0.45))),
+            attack: Math.max(22, Math.round(pStats.attack * (0.85 + (sr.tier || 1) * 0.18))),
             defense: Math.max(20, Math.round((20 + pRealmIdx * 4.5) * (1 + sr.tier * 0.08))),
             speed: Math.max(12, Math.round(pStats.speed * 1.05))
           }

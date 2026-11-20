@@ -55,6 +55,32 @@ window.TuTien.Combat = {
       ? { fullName: monsterDef.realmLabelOverride }
       : ((window.TuTien.REALMS && window.TuTien.REALMS[monsterDef.canhGioiIdx || 0]) || { fullName: 'Thối Thể - Sơ Kỳ' });
 
+    // === MÁU BOSS / TINH ANH ĐI THEO HỆ SỐ CỘNG DỒN CỦA NGƯỜI CHƠI (chỉ khi địch ngang hoặc hơn cảnh giới) ===
+    const mRealmIdx = monsterDef.canhGioiIdx || 0;
+    const curPlayerRealmIdx = (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.realmIndex) || 0;
+    if ((monsterDef.isBoss || monsterDef.isElite) && mRealmIdx >= curPlayerRealmIdx) {
+      const cs = window.TuTien.CONFIG.combatStats;
+      const rIdx = (window.TuTien.State.data.realmIndex) || 0;
+      const goc = (cs.baseAttack + rIdx * cs.perSubRealmAttack) * Math.pow(cs.perMajorRealmStatMult, Math.floor(rIdx / 5));
+      const heSoCongDon = Math.max(1, cStats.attack / goc);
+      const follow = monsterDef.isBoss ? (cfg.bossFollowPlayerMult ?? 0.7) : (cfg.eliteFollowPlayerMult ?? 0.4);
+      mStats.maxHp = Math.round(mStats.maxHp * (1 + (heSoCongDon - 1) * follow));
+    }
+
+    // === CÂN BẰNG SÁT THƯƠNG QUÁI / TINH ANH / BOSS ===
+    mStats.attack = Math.max(8, Math.round(mStats.attack * (cfg.monsterAtkMult ?? 1.65)));
+    if (mRealmIdx >= curPlayerRealmIdx) {
+      const cs = window.TuTien.CONFIG.combatStats;
+      const gocHp = (cs.baseHp + curPlayerRealmIdx * cs.perSubRealmHp) * Math.pow(cs.perMajorRealmStatMult, Math.floor(curPlayerRealmIdx / 5));
+      const heSoHp = Math.max(1, pMaxHp / Math.max(1, gocHp));
+      const atkFollow = monsterDef.isBoss
+        ? (cfg.bossAtkFollowPlayerMult ?? 0.45)
+        : monsterDef.isElite
+          ? (cfg.eliteAtkFollowPlayerMult ?? 0.28)
+          : (cfg.mobAtkFollowPlayerMult ?? 0.15);
+      mStats.attack = Math.round(mStats.attack * (1 + (heSoHp - 1) * atkFollow));
+    }
+
     const loadoutIds = window.TuTien.Loadout ? window.TuTien.Loadout.ensureState() : [];
     const Tech = window.TuTien.Techniques;
     const skills = loadoutIds.map(id => {
@@ -82,6 +108,7 @@ window.TuTien.Combat = {
         name: (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.character && window.TuTien.State.data.character.name) || 'Đạo Hữu',
         gender: window.TuTien.Character ? window.TuTien.Character.getGender() : 'male',
         he: (window.TuTien.State && window.TuTien.State.data && window.TuTien.State.data.prestige && window.TuTien.State.data.prestige.rootId) || 'kim',
+        realmIdx: pRealmIdx,
         maxHp: pMaxHp,
         currentHp: startHp,
         maxMp: pMaxMp,
@@ -97,8 +124,13 @@ window.TuTien.Combat = {
         def: monsterDef,
         name: monsterDef.ten,
         realmName: realmObj.fullName,
+        realmIdx: monsterDef.canhGioiIdx || 0,
         he: monsterDef.he || 'kim',
         svgKey: monsterDef.svgKey || 'wolf',
+        bossImage: monsterDef.bossImage || null,
+        bossSprite: monsterDef.bossSprite || null,
+        bossAccent: monsterDef.bossAccent || '#facc15',
+        bossSubtitle: monsterDef.bossSubtitle || '',
         entityType: monsterDef.entityType || (monsterDef.isBoss ? 'boss' : 'monster'),
         isBoss: !!monsterDef.isBoss,
         isElite: !!monsterDef.isElite,
@@ -180,6 +212,24 @@ window.TuTien.Combat = {
     return { ok: true, reason: useInfo.status === 'weakened' ? '⚠️ 15% uy lực' : '', powerMult: useInfo.powerMult };
   },
 
+  getRealmSuppressionInfo() {
+    if (!this.state) return { diff: 0, mult: 1.0, label: '' };
+    const cfg = (window.TuTien.CONFIG && window.TuTien.CONFIG.combatV2) || {};
+    const step = cfg.realmSuppressionPerTier ?? 0.10;
+    const minMult = cfg.realmSuppressionMinMult ?? 0.05;
+    const pR = this.state.player.realmIdx || 0;
+    const eR = this.state.enemy.realmIdx || 0;
+    const diff = pR - eR; // >0: người chơi áp đảo, <0: bị địch áp chế
+    if (diff === 0) return { diff: 0, mult: 1.0, label: '' };
+    if (diff > 0) {
+      const mult = 1 + diff * step;
+      return { diff, mult, label: `⚡ Áp Đảo (+${diff} cảnh giới • +${Math.round(diff * step * 100)}% ST)` };
+    }
+    const mult = Math.max(minMult, 1 + diff * step);
+    const pct = Math.round(mult * 100);
+    return { diff, mult, label: `⚠️ Áp Chế (${diff} cảnh giới • còn ${pct}% ST)` };
+  },
+
   computeDeterministicDamage(attacker, defender, skillMult, atkElem, isAutoPlayer = false, isKetLieu = false) {
     const cfg = (window.TuTien.CONFIG && window.TuTien.CONFIG.combatV2) || {};
     const Status = window.TuTien.Status;
@@ -202,10 +252,26 @@ window.TuTien.Combat = {
 
     const autoScale = isAutoPlayer ? (cfg.autoDamageMult || 0.90) : 1.0;
     const variance = cfg.randomEnabled ? (0.94 + Math.random() * 0.12) : 1.0;
-    const raw = effAtk * skillMult * elemInfo.mult * elemBonus * finishBonus * autoScale * variance * ((cfg.defenseDivisor || 100) / ((cfg.defenseDivisor || 100) + effDef));
+    // Áp Đảo / Áp Chế Cảnh Giới 2 CHIỀU (áp dụng cho cả người chơi đánh quái lẫn quái đánh người chơi)
+    const rStep = cfg.realmSuppressionPerTier ?? 0.10;
+    const rMin = cfg.realmSuppressionMinMult ?? 0.05;
+    const rDiff = (attacker.realmIdx || 0) - (defender.realmIdx || 0);
+    const realmMult = rDiff >= 0
+      ? (1 + rDiff * rStep)
+      : Math.max(rMin, 1 + rDiff * rStep);
+    const raw = effAtk * skillMult * elemInfo.mult * elemBonus * finishBonus * realmMult * autoScale * variance * ((cfg.defenseDivisor || 100) / ((cfg.defenseDivisor || 100) + effDef));
+
+    let finalDmg = Math.max(1, Math.round(raw));
+    if (defender === this.state.enemy && (defender.realmIdx || 0) >= (attacker.realmIdx || 0)) {
+      if (defender.isBoss && cfg.bossHitCapPct > 0) {
+        finalDmg = Math.min(finalDmg, Math.max(1, Math.floor(defender.maxHp * cfg.bossHitCapPct)));
+      } else if (defender.isElite && cfg.eliteHitCapPct > 0) {
+        finalDmg = Math.min(finalDmg, Math.max(1, Math.floor(defender.maxHp * cfg.eliteHitCapPct)));
+      }
+    }
 
     return {
-      damage: Math.max(1, Math.round(raw)),
+      damage: finalDmg,
       elemLabel: elemInfo.label,
       isAdvantage: elemInfo.mult > 1.0
     };
@@ -360,7 +426,13 @@ window.TuTien.Combat = {
     const mSkill = window.TuTien.CombatAI.pickMonsterSkill(e, s.turn);
     this.pushBanner(`${e.name} dùng 【${mSkill.ten}】`, mSkill.he || e.he, '👹');
 
-    if (mSkill.loai === 'buff') {
+    if (mSkill.loai === 'hoi_phuc') {
+      const healAmt = Math.max(10, Math.round(e.maxHp * (mSkill.healPct || 0.12)));
+      e.currentHp = Math.min(e.maxHp, e.currentHp + healAmt);
+      this.pushFloatDamage('enemy', `+${Utils.formatNumber(healAmt)}`, false, true);
+      (mSkill.hieuUng || []).forEach(ef => Status.applyEffect(e, ef.id, ef.soHiep, ef.tiLeHieuUng));
+      s.logs.push(`💚 ${e.name} dùng 【${mSkill.ten}】 hồi +${Utils.formatNumber(healAmt)} HP!`);
+    } else if (mSkill.loai === 'buff') {
       if (!Status.hasFlag(e, 'blockBuff')) {
         (mSkill.hieuUng || []).forEach(ef => Status.applyEffect(e, ef.id, ef.soHiep, ef.tiLeHieuUng));
         s.logs.push(`👹 ${e.name} dùng 【${mSkill.ten}】 tăng cường sức mạnh!`);

@@ -86,6 +86,17 @@ window.TuTien = window.TuTien || {};
         3: { fixed: f3Fixed, rotatingPool: f3Rot }
       }
     },
+    de_lo_chien_truong: {
+      id: 'de_lo_chien_truong',
+      tenCho: 'Chợ Đế Lộ Chiến Trường',
+      heSoGia: 1.20,
+      moTa: 'Thương hội biên ải Đế Lộ, quy tụ trân bảo tối thượng cho các bậc Chuẩn Đế.',
+      tang: {
+        1: { fixed: f1Fixed, rotatingPool: f1Rot },
+        2: { fixed: f2Fixed, rotatingPool: f2Rot },
+        3: { fixed: f3Fixed, rotatingPool: f3Rot }
+      }
+    },
     hong_mong_gioi: {
       id: 'hong_mong_gioi',
       tenCho: 'Chợ Hồng Mông Giới',
